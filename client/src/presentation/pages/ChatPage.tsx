@@ -74,7 +74,7 @@ export default function ChatPage() {
     if (selectedUser && user) {
       const fetchHistory = async () => {
         const res = await fetch(
-          `http://localhost:3001/messages/history/${user.id}/${selectedUser.id}`
+          `${process.env.NEXT_PUBLIC_API_URL}/messages/history/${user.id}/${selectedUser.id}`
         );
         const data = await res.json();
         setMessages(
