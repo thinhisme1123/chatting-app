@@ -24,6 +24,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { User } from "@/src/domain/entities/User";
 import { AuthUseCases } from "@/src/application/usecases/AuthUseCases";
 import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
+import { Message } from "@/src/domain/entities/Message";
 
 const socket: Socket = io("http://localhost:3001");
 
@@ -48,19 +49,17 @@ export default function ChatPage() {
 
     socket.emit("register-user", user.id);
 
-    socket.on("receive-message", (data) => {
+    socket.on("receive-message", (data: any) => {
       const message = {
-        id: Date.now().toString(),
-        senderId: data.fromUserId,
-        senderName: data.senderName,
-        content: data.message,
-        timestamp: new Date(),
+        ...data,
         isOwn: false,
       };
-      
-      // Only add message if it's from the currently selected user
-      // or if no user is selected yet
-      if (!selectedUser || data.fromUserId === selectedUser.id) {
+
+      // Only add if this is the selected chat
+      if (
+        selectedUser?.id === data.fromUserId ||
+        selectedUser?.id === data.toUserId
+      ) {
         setMessages((prev) => [...prev, message]);
       }
     });
@@ -69,6 +68,33 @@ export default function ChatPage() {
       socket.off("receive-message");
     };
   }, [user, selectedUser]);
+
+  // fetch chat history
+  useEffect(() => {
+    if (selectedUser && user) {
+      const fetchHistory = async () => {
+        const res = await fetch(
+          `http://localhost:3001/messages/history/${user.id}/${selectedUser.id}`
+        );
+        const data = await res.json();
+        setMessages(
+          data.map((msg: Message) => ({
+            ...msg,
+            isOwn: msg.fromUserId === user.id,
+          }))
+        );
+      };
+
+      fetchHistory();
+    }
+  }, [selectedUser]);
+
+  // when new message appear
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const el = document.querySelector("#chat-end");
+    el?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // Handle user selection
   const handleUserSelect = (selectedUserData: User) => {
@@ -91,6 +117,10 @@ export default function ChatPage() {
     };
 
     setMessages((prev) => [...prev, message]);
+    setTimeout(() => {
+      const el = document.querySelector("#chat-end");
+      el?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
 
     socket.emit("send-message", {
       fromUserId: user?.id,
@@ -130,15 +160,17 @@ export default function ChatPage() {
                 key={userItem.id}
                 onClick={() => handleUserSelect(userItem)}
                 className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                  selectedUser?.id === userItem.id 
-                    ? "bg-blue-50 border border-blue-200" 
+                  selectedUser?.id === userItem.id
+                    ? "bg-blue-50 border border-blue-200"
                     : "hover:bg-gray-50"
                 }`}
               >
                 <div className="relative">
                   <Avatar>
                     <AvatarImage src={userItem.avatar || "/placeholder.svg"} />
-                    <AvatarFallback>{userItem.username.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>
+                      {userItem.username.charAt(0)}
+                    </AvatarFallback>
                   </Avatar>
                   {userItem.isOnline && (
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
@@ -147,10 +179,16 @@ export default function ChatPage() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium truncate">{userItem.username}</h3>
+                    <h3 className="font-medium truncate">
+                      {userItem.username}
+                    </h3>
                   </div>
-                  <p className="text-sm text-gray-600 truncate">{userItem.email}</p>
-                  <p className="text-xs text-gray-400 truncate">ID: {userItem.id}</p>
+                  <p className="text-sm text-gray-600 truncate">
+                    {userItem.email}
+                  </p>
+                  <p className="text-xs text-gray-400 truncate">
+                    ID: {userItem.id}
+                  </p>
                 </div>
 
                 <Badge className="text-xs bg-green-100 text-green-600">
@@ -160,13 +198,15 @@ export default function ChatPage() {
             ))}
           </div>
         </ScrollArea>
-        
+
         {/* Current User Info */}
         <div className="p-4 border-t">
           <div className="flex items-center gap-3">
             <Avatar>
               <AvatarImage src="/placeholder.svg" />
-              <AvatarFallback>{user?.username?.charAt(0) || "A"}</AvatarFallback>
+              <AvatarFallback>
+                {user?.username?.charAt(0) || "A"}
+              </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <h4 className="font-medium">{user?.username}</h4>
@@ -193,13 +233,19 @@ export default function ChatPage() {
             <div className="flex items-center justify-between p-4 border-b">
               <div className="flex items-center gap-3">
                 <Avatar>
-                  <AvatarImage src={selectedUser.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>{selectedUser.username.charAt(0)}</AvatarFallback>
+                  <AvatarImage
+                    src={selectedUser.avatar || "/placeholder.svg"}
+                  />
+                  <AvatarFallback>
+                    {selectedUser.username.charAt(0)}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
                   <h3 className="font-semibold">{selectedUser.username}</h3>
                   <p className="text-sm text-gray-600">
-                    {selectedUser.isOnline ? "Đang hoạt động" : "Không hoạt động"}
+                    {selectedUser.isOnline
+                      ? "Đang hoạt động"
+                      : "Không hoạt động"}
                   </p>
                   <p className="text-xs text-gray-400">ID: {selectedUser.id}</p>
                 </div>
@@ -252,14 +298,19 @@ export default function ChatPage() {
                         <p className="text-sm">{message.content}</p>
                       </div>
                       <span className="text-xs text-gray-500 mt-1">
-                        {new Date(message.timestamp).toLocaleTimeString("vi-VN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {new Date(message.timestamp).toLocaleTimeString(
+                          "vi-VN",
+                          {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
                       </span>
                     </div>
                   </div>
                 ))}
+
+                <div id="chat-end" />
               </div>
             </ScrollArea>
 

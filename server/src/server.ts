@@ -6,6 +6,10 @@ import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { mainRoutes } from './routes';
+import { MessageRepository } from './interfaces/repositories/message.repository';
+import { MessageUseCases } from './application/message/message-use-case';
+
+const messageUseCases = new MessageUseCases(new MessageRepository());
 
 // Load env vars
 dotenv.config();
@@ -43,16 +47,18 @@ io.on('connection', (socket) => {
     io.emit('online-users', Array.from(onlineUsers.keys()));
   });
 
-  socket.on('send-message', ({ fromUserId, toUserId, message }) => {
+  socket.on("send-message", async ({ toUserId, fromUserId, message, senderName }) => {
+    const newMessage = await messageUseCases.saveMessage({
+      toUserId,
+      fromUserId,
+      senderName,
+      content: message,
+      timestamp: new Date(),
+    });
+
     const targetSocketId = onlineUsers.get(toUserId);
-    console.log(`📨 Message from ${fromUserId} to ${toUserId}: ${message}`);
     if (targetSocketId) {
-      io.to(targetSocketId).emit('receive-message', {
-        fromUserId,
-        message,
-      });
-    } else {
-      console.log(`⚠️ User ${toUserId} is offline or not registered.`);
+      io.to(targetSocketId).emit("receive-message", newMessage);
     }
   });
 

@@ -1,53 +1,12 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
+// 📁 server/src/infrastructure/db/models/message-model.ts
+import mongoose from "mongoose";
 
-export interface IMessage extends Document {
-  senderId: string;
-  receiverId: string;
-  senderName: string;
-  content: string;
-  timestamp: Date;
-  isRead: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
+const MessageSchema = new mongoose.Schema({
+  fromUserId: { type: String, required: true },
+  toUserId: { type: String, required: true },
+  senderName: { type: String, required: true },
+  content: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+});
 
-const messageSchema: Schema<IMessage> = new Schema(
-  {
-    senderId: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    receiverId: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    senderName: {
-      type: String,
-      required: true,
-    },
-    content: {
-      type: String,
-      required: true,
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now,
-    },
-    isRead: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  {
-    timestamps: true, // adds createdAt and updatedAt
-  }
-);
-
-// Compound indexes for efficient querying
-messageSchema.index({ senderId: 1, receiverId: 1, timestamp: -1 });
-messageSchema.index({ receiverId: 1, senderId: 1, timestamp: -1 });
-
-const MessageModel: Model<IMessage> = mongoose.model<IMessage>('Message', messageSchema);
-export default MessageModel;
+export const MessageModel = mongoose.model("Message", MessageSchema);

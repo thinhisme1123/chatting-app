@@ -1,9 +1,9 @@
 import express from 'express';
-import { saveMessageController } from '../interfaces/http/controllers/message-controller';
+import { getChatHistory } from '../interfaces/http/controllers/message-controller';
 
 const router = express.Router();
 
-router.post('/save', saveMessageController);
+router.get('/history/:userA/:userB', getChatHistory);
 
 
 export default router;

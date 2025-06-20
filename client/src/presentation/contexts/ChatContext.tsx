@@ -85,6 +85,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         conversationId: currentConversation.id,
         messageType: "text",
         isRead: false,
+        fromUserId: "",
+        toUserId: "",
+        senderName: ""
       })
     } catch (error) {
       console.error("Error sending message:", error)

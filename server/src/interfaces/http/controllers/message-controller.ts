@@ -1,22 +1,16 @@
+// 📁 server/src/interfaces/http/controllers/message-controller.ts
 import { Request, Response } from "express";
-import MessageModel from "../../../infrastructure/db/models/message-model";
+import { MessageUseCases } from "../../../application/message/message-use-case";
+import { MessageRepository } from "../../repositories/message.repository";
 
-export const saveMessageController = async (req: Request, res: Response) => {
-    try {
-    const { senderId, receiverId, senderName, content, timestamp } = req.body;
-    
-    const newMessage = new MessageModel({
-      senderId,
-      receiverId,
-      senderName,
-      content,
-      timestamp: timestamp || new Date()
-    });
-    
-    const savedMessage = await newMessage.save();
-    res.status(201).json(savedMessage);
-  } catch (error) {
-    console.error('Error saving message:', error);
-    res.status(500).json({ error: 'Failed to save message' });
+const messageUseCases = new MessageUseCases(new MessageRepository());
+
+export const getChatHistory = async (req: Request, res: Response) => {
+  const { userA, userB } = req.params;
+  try {
+    const history = await messageUseCases.getChatHistory(userA, userB);
+    res.status(200).json(history);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch message history" });
   }
-}
+};
