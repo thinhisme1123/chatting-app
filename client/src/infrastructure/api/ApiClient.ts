@@ -5,7 +5,7 @@ export class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: process.env.REACT_APP_API_URL || "http://localhost:3001",
+      baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
       timeout: 10000,
     })
 
