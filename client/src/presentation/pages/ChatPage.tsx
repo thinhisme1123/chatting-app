@@ -26,7 +26,7 @@ import { AuthUseCases } from "@/src/application/usecases/AuthUseCases";
 import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
 import { Message } from "@/src/domain/entities/Message";
 
-const socket: Socket = io("http://localhost:3001");
+const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL);
 
 export default function ChatPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
