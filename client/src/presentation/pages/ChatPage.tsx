@@ -19,6 +19,7 @@ import {
   Phone,
   Video,
   MoreVertical,
+  ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { User } from "@/src/domain/entities/User";
@@ -27,37 +28,10 @@ import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository
 import { Message } from "@/src/domain/entities/Message";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import Link from "next/link";
+import { TypingIndicator } from "../components/parts/TypingIndicator";
 
 const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL);
 
-// Typing indicator component
-const TypingIndicator = ({ username }: { username: string }) => (
-  <div className="flex gap-3">
-    <Avatar className="w-8 h-8">
-      <AvatarImage src="/placeholder.svg" />
-      <AvatarFallback>{username.charAt(0)}</AvatarFallback>
-    </Avatar>
-    <div className="flex flex-col items-start">
-      <div className="bg-gray-100 px-4 py-2 rounded-2xl flex items-center gap-2">
-        <div className="flex gap-1">
-          <div
-            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-            style={{ animationDelay: "0ms" }}
-          ></div>
-          <div
-            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-            style={{ animationDelay: "150ms" }}
-          ></div>
-          <div
-            className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-            style={{ animationDelay: "300ms" }}
-          ></div>
-        </div>
-        <span className="text-sm text-gray-600">{username} đang nhập...</span>
-      </div>
-    </div>
-  </div>
-);
 
 export default function ChatPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -66,6 +40,7 @@ export default function ChatPage() {
   const { user, logout } = useAuth();
   const [users, setUsers] = useState<User[] | null>([]);
   const authUseCases = new AuthUseCases(new AuthRepository());
+  const [isMobile, setIsMobile] = useState(false);
 
   // Typing indicator states
   const [typingUserName, setTypingUserName] = useState<string | null>(null);
@@ -88,19 +63,23 @@ export default function ChatPage() {
       const data = await authUseCases.getAllUsers(user?.id as string);
       setUsers(data);
       if (Array.isArray(data) && data.length > 0 && !selectedUser) {
-        setSelectedUser(data[0]); // 👈 first user is selected by default
+    
         clearNewMessageForUser(data[0].id);
-        // Optional: load chat history here too
       }
     };
     if (Notification.permission !== "granted") {
       Notification.requestPermission();
     }
+
     fetchUsers();
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
@@ -191,7 +170,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (messages.length === 0) return;
     const el = document.querySelector("#chat-end");
-    el?.scrollIntoView({ behavior: "smooth" });
+    el?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
   // Scroll when typing indicator appears/disappears
@@ -297,9 +276,14 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="h-screen flex bg-gray-50">
+    <div className="h-screen flex flex-col md:flex-row bg-gray-50">
       {/* Left Sidebar - User List */}
-      <div className="w-90 bg-white border-r flex flex-col">
+      <div
+        className={`
+            w-90 h-full md:w-90 bg-white border-r flex flex-col
+            ${selectedUser && isMobile ? "hidden" : "block"}
+          `}
+      >
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Tin nhắn</h2>
@@ -383,7 +367,7 @@ export default function ChatPage() {
             </Link>
             <div className="flex-1">
               <Link href="/profile">
-              <h4 className="font-medium">{user?.username}</h4>
+                <h4 className="font-medium">{user?.username}</h4>
               </Link>
               <p className="text-sm text-green-600">Online</p>
             </div>
@@ -400,11 +384,25 @@ export default function ChatPage() {
       </div>
 
       {/* Right Side - Chat Area */}
-      <div className="flex-1 flex flex-col bg-white">
+      <div
+        className={`
+          flex-1 flex flex-col bg-white
+          ${!selectedUser && isMobile ? "hidden" : "flex"}
+        `}
+      >
         {selectedUser ? (
           <>
             {/* Chat Header */}
-            <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+              {isMobile && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedUser(null)}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
               <div className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage
@@ -421,7 +419,6 @@ export default function ChatPage() {
                       ? "Đang hoạt động"
                       : "Không hoạt động"}
                   </p>
-                  <p className="text-xs text-gray-400">ID: {selectedUser.id}</p>
                 </div>
               </div>
 
@@ -439,7 +436,7 @@ export default function ChatPage() {
             </div>
 
             {/* Messages Area */}
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className={`flex-1 p-4 ${isMobile ? "mt-6" : ""}`}>
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div
@@ -492,15 +489,8 @@ export default function ChatPage() {
               </div>
             </ScrollArea>
 
-            {/* Current user typing status (optional - for debugging, can be removed) */}
-            {/* {isTyping && (
-              <div className="px-4 py-1 text-xs text-blue-600 italic border-t bg-blue-50">
-                Bạn đang nhập tin nhắn gửi {selectedUser.username}...
-              </div>
-            )} */}
-
             {/* Message Input */}
-            <div className="border-t p-4">
+            <div className="border-t p-4 sticky bottom-0 bg-white z-10">
               <form onSubmit={handleSendMessage} className="flex gap-2">
                 <Input
                   value={newMessage}
