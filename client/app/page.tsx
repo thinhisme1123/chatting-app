@@ -4,10 +4,9 @@ import { useState } from "react"
 import { LoginForm } from "@/src/presentation/components/auth/LoginForm"
 import { RegisterForm } from "@/src/presentation/components/auth/RegisterForm"
 import { useAuth } from "@/src/presentation/contexts/AuthContext"
-import { ChatPage } from "@/src/presentation/pages/ChatPage-vtempt"
 import { Button } from "@/components/ui/button"
 import { MessageCircle, Users, Zap, Shield, Heart } from "lucide-react"
-import ChatPageV2 from "@/src/presentation/pages/ChatPage"
+import ChatPage from "@/src/presentation/pages/ChatPage"
 
 function AuthPageContent() {
   const [isLogin, setIsLogin] = useState(true)
@@ -151,5 +150,5 @@ export default function HomePage() {
     return <AuthPageContent />
   }
 
-  return <ChatPageV2 />
+  return <ChatPage />
 }
