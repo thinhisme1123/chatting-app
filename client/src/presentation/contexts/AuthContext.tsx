@@ -20,15 +20,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const authUseCases = new AuthUseCases(new AuthRepository())
-
   useEffect(() => {
     checkCurrentUser()
   }, [])
 
   const checkCurrentUser = async () => {
     try {
-      const currentUser = await authUseCases.getCurrentUser()
+      const useCases = new AuthUseCases(new AuthRepository())
+      const currentUser = await useCases.getCurrentUser()
       setUser(currentUser)
     } catch (error) {
       console.error("Error checking current user:", error)
@@ -38,21 +37,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const login = async (email: string, password: string) => {
-    const response = await authUseCases.login({ email, password })
+    const useCases = new AuthUseCases(new AuthRepository())
+    const response = await useCases.login({ email, password })
     setUser(response.user)
   }
 
   const register = async (email: string, username: string, password: string) => {
-    const response = await authUseCases.register({ email, username, password })
+    const useCases = new AuthUseCases(new AuthRepository())
+    const response = await useCases.register({ email, username, password })
     setUser(response.user)
   }
 
   const logout = async () => {
-    await authUseCases.logout()
+    const useCases = new AuthUseCases(new AuthRepository())
+    await useCases.logout()
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, login, register, logout, loading }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export const useAuth = () => {
