@@ -1,6 +1,3 @@
-// 📁 ChatPage.tsx
-"use client";
-
 import type React from "react";
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
