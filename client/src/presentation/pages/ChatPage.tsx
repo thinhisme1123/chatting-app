@@ -69,7 +69,7 @@ export default function ChatPage() {
     }
 
     fetchUsers();
-
+    
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
@@ -90,7 +90,6 @@ export default function ChatPage() {
         isOwn: false,
       };
 
-      // Only add if this is the selected chat
       if (
         selectedUser?.id === data.fromUserId ||
         selectedUser?.id === data.toUserId
@@ -102,10 +101,10 @@ export default function ChatPage() {
         if (Notification.permission === "granted") {
           new Notification(`${data.senderName} đã đề cập đến bạn`, {
             body: message.content,
-            icon: "/chat-icon.png",
+            icon: "/images/chat-icon-2.png",
           });
-          playNotificationSound();
         }
+        playNotificationSound();
       }
     });
 
@@ -130,6 +129,8 @@ export default function ChatPage() {
         );
       };
       document.title = selectedUser.username;
+      console.log(selectedUser);
+      
       fetchHistory();
     }
     const handleTyping = ({
@@ -302,7 +303,6 @@ export default function ChatPage() {
           <div className="p-2">
             {users?.map((userItem) => {
               const hasNew = newMessageUserIds.includes(userItem.id);
-
               return (
                 <div
                   key={userItem.id}
@@ -319,7 +319,7 @@ export default function ChatPage() {
                   <div className="relative">
                     <Avatar>
                       <AvatarImage
-                        src={userItem.avatar || "/placeholder.svg"}
+                        src={userItem.avatar || '/images/user-placeholder.jpg'}
                       />
                       <AvatarFallback>
                         {userItem.username.charAt(0)}
@@ -341,9 +341,6 @@ export default function ChatPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 truncate">
-                      {userItem.email}
-                    </p>
                   </div>
                 </div>
               );
@@ -356,7 +353,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-3">
             <Link href="/profile">
               <Avatar>
-                <AvatarImage src="/placeholder.svg" />
+                <AvatarImage src={user?.avatar || '/images/user-placeholder.jpg'} />
                 <AvatarFallback>
                   {user?.username?.charAt(0) || "A"}
                 </AvatarFallback>
@@ -403,7 +400,7 @@ export default function ChatPage() {
               <div className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage
-                    src={selectedUser.avatar || "/placeholder.svg"}
+                    src={selectedUser.avatar || '/images/user-placeholder.jpg'}
                   />
                   <AvatarFallback>
                     {selectedUser.username.charAt(0)}
@@ -444,7 +441,7 @@ export default function ChatPage() {
                   >
                     {!message.isOwn && (
                       <Avatar className="w-8 h-8">
-                        <AvatarImage src="/placeholder.svg" />
+                        <AvatarImage src={selectedUser?.avatar || '/images/user-placeholder.jpg'} />
                         <AvatarFallback>
                           {message.senderName?.charAt(0) || "U"}
                         </AvatarFallback>
@@ -479,7 +476,7 @@ export default function ChatPage() {
                 ))}
 
                 {typingUserName && (
-                  <TypingIndicator username={typingUserName} />
+                  <TypingIndicator username={typingUserName} avatar={user?.avatar as string}/>
                 )}
 
                 <div id="chat-end" />

@@ -1,25 +1,46 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
-import { Camera, Upload, User, Mail, MapPin, Calendar, Save, X } from 'lucide-react';
+import { AuthUseCases } from "@/src/application/usecases/AuthUseCases";
+import { User as UserModel } from "@/src/domain/entities/User";
+import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
+import {
+  Calendar,
+  Camera,
+  Mail,
+  MapPin,
+  Save,
+  Upload,
+  User,
+  X,
+} from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 
 const Profile: React.FC = () => {
-  const [profileImage, setProfileImage] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const authUseCases = new AuthUseCases(new AuthRepository());
+  const [user, setUser] = useState<UserModel | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const currentUser = await authUseCases.getCurrentUser();
+      setUser(currentUser);
+    };
+    fetchUser();
+  }, []);
 
   const [profileData, setProfileData] = useState({
-    name: 'John Doe',
-    email: 'john.doe@email.com',
-    location: 'New York, NY',
-    bio: 'Product designer passionate about creating beautiful and functional user experiences.',
-    joinDate: 'March 2023'
+    name: "John Doe",
+    email: "john.doe@email.com",
+    location: "New York, NY",
+    bio: "Product designer passionate about creating beautiful and functional user experiences.",
+    joinDate: "March 2023",
   });
 
   const handleImageUpload = (file: File) => {
-    if (file && file.type.startsWith('image/')) {
+    if (file && file.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const result = e.target?.result as string;
@@ -46,12 +67,39 @@ const Profile: React.FC = () => {
   };
 
   const confirmImageUpload = async () => {
-    if (previewImage) {
-      setIsUploading(true);
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setProfileImage(previewImage);
-      setPreviewImage(null);
+    if (!previewImage || !fileInputRef.current?.files?.[0]) return;
+
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append("avatar", fileInputRef.current.files[0]);
+    const userString = localStorage.getItem("user");
+    if (!userString) {
+      console.error("User not found in localStorage");
+      return;
+    }
+
+    const user = JSON.parse(userString);
+    formData.append("userId", user.id);
+
+    try {
+      const response = await fetch("http://localhost:3001/user/upload-avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Upload failed");
+
+      const data = await response.json();
+      const imageUrl = data.imageUrl;
+      
+      setPreviewImage(null); 
+      setUser({ ...user, avatar: imageUrl }); 
+      localStorage.setItem("user", JSON.stringify({ ...user, avatar: imageUrl }));
+      fileInputRef.current.value = "";
+    } catch (err) {
+      console.error("Image upload failed:", err);
+    } finally {
       setIsUploading(false);
     }
   };
@@ -59,14 +107,14 @@ const Profile: React.FC = () => {
   const cancelImageUpload = () => {
     setPreviewImage(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setProfileData(prev => ({
+    setProfileData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -76,15 +124,19 @@ const Profile: React.FC = () => {
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Profile Settings</h1>
-            <p className="text-gray-600">Manage your account settings and preferences</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              Profile Settings
+            </h1>
+            <p className="text-gray-600">
+              Manage your account settings and preferences
+            </p>
           </div>
 
           {/* Main Profile Card */}
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
             {/* Cover Section */}
             <div className="h-32 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-            
+
             {/* Profile Content */}
             <div className="px-8 py-6">
               {/* Profile Image Section */}
@@ -92,9 +144,9 @@ const Profile: React.FC = () => {
                 <div className="relative">
                   {/* Profile Image */}
                   <div className="w-32 h-32 rounded-full bg-white p-2 shadow-lg">
-                    {profileImage ? (
+                    {user?.avatar ? (
                       <img
-                        src={profileImage}
+                        src={user?.avatar}
                         alt="Profile"
                         className="w-full h-full rounded-full object-cover"
                       />
@@ -104,7 +156,7 @@ const Profile: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Camera Icon */}
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -119,8 +171,8 @@ const Profile: React.FC = () => {
                   <div
                     className={`border-2 border-dashed rounded-xl p-6 text-center transition-all duration-300 ${
                       isDragging
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-300 hover:border-indigo-400 hover:bg-gray-50'
+                        ? "border-indigo-500 bg-indigo-50"
+                        : "border-gray-300 hover:border-indigo-400 hover:bg-gray-50"
                     }`}
                     onDrop={handleDrop}
                     onDragOver={(e) => {
@@ -162,8 +214,10 @@ const Profile: React.FC = () => {
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="text"
-                        value={profileData.name}
-                        onChange={(e) => handleInputChange('name', e.target.value)}
+                        value={user?.username}
+                        onChange={(e) =>
+                          handleInputChange("name", e.target.value)
+                        }
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                         placeholder="Enter your full name"
                       />
@@ -178,8 +232,10 @@ const Profile: React.FC = () => {
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="email"
-                        value={profileData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        value={user?.email}
+                        onChange={(e) =>
+                          handleInputChange("email", e.target.value)
+                        }
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                         placeholder="Enter your email"
                       />
@@ -195,7 +251,9 @@ const Profile: React.FC = () => {
                       <input
                         type="text"
                         value={profileData.location}
-                        onChange={(e) => handleInputChange('location', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("location", e.target.value)
+                        }
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                         placeholder="Enter your location"
                       />
@@ -211,7 +269,7 @@ const Profile: React.FC = () => {
                     </label>
                     <textarea
                       value={profileData.bio}
-                      onChange={(e) => handleInputChange('bio', e.target.value)}
+                      onChange={(e) => handleInputChange("bio", e.target.value)}
                       rows={4}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 resize-none"
                       placeholder="Tell us about yourself..."
@@ -252,7 +310,9 @@ const Profile: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Preview Image</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Preview Image
+              </h3>
               <button
                 onClick={cancelImageUpload}
                 className="text-gray-400 hover:text-gray-600"
@@ -260,7 +320,7 @@ const Profile: React.FC = () => {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            
+
             <div className="mb-6">
               <img
                 src={previewImage}
@@ -268,7 +328,7 @@ const Profile: React.FC = () => {
                 className="w-full h-64 object-cover rounded-lg"
               />
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={cancelImageUpload}
@@ -281,7 +341,7 @@ const Profile: React.FC = () => {
                 disabled={isUploading}
                 className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isUploading ? 'Uploading...' : 'Upload'}
+                {isUploading ? "Uploading..." : "Upload"}
               </button>
             </div>
           </div>
