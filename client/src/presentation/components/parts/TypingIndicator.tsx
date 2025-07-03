@@ -5,12 +5,13 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface TypingIndicatorProps {
   username: string;
+  avatar: string;
 }
 
-export const TypingIndicator = ({ username }: TypingIndicatorProps) => (
+export const TypingIndicator = ({ username, avatar }: TypingIndicatorProps) => (
   <div className="flex gap-3">
     <Avatar className="w-8 h-8">
-      <AvatarImage src="/placeholder.svg" />
+      <AvatarImage src={avatar || '/images/user-placeholder.jpg'} />
       <AvatarFallback>{username.charAt(0)}</AvatarFallback>
     </Avatar>
     <div className="flex flex-col items-start">

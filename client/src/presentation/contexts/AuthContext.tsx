@@ -8,6 +8,7 @@ import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository
 
 interface AuthContextType {
   user: User | null
+  setUser: (user: User) => void
   login: (email: string, password: string) => Promise<void>
   register: (email: string, username: string, password: string) => Promise<void>
   logout: () => Promise<void>
@@ -38,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     const useCases = new AuthUseCases(new AuthRepository())
-    const response = await useCases.login({ email, password })
+    const response = await useCases.login({ email, password})
     setUser(response.user)
   }
 
@@ -55,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, setUser, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   )

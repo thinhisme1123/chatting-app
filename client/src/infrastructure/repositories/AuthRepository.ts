@@ -27,28 +27,13 @@ export class AuthRepository implements IAuthRepository {
       }
       return config;
     });
-
-    // Handle response errors
-    // this.apiClient.interceptors.response.use(
-    //   (response) => response,
-    //   (error) => {
-    //     if (error.response?.status === 401) {
-    //       localStorage.removeItem("auth_token")
-    //       // Optionally redirect to login
-    //       if (typeof window !== "undefined") {
-    //         window.location.href = "/"
-    //       }
-    //     }
-    //     return Promise.reject(error)
-    //   },
-    // )
   }
 
   async login(request: LoginRequest): Promise<AuthResponse> {
     try {
-      console.log(request);
-
-      const response = await this.apiClient.post("/auth/login", request);
+      const response = await this.apiClient.post("/auth/login", request, {
+        withCredentials: true, // 🔥 Rất quan trọng để gửi cookie qua
+      });
 
       if (response.data.token) {
         localStorage.setItem("auth_token", response.data.token);
@@ -64,7 +49,9 @@ export class AuthRepository implements IAuthRepository {
 
   async register(request: RegisterRequest): Promise<AuthResponse> {
     console.log(request);
-    const response = await this.apiClient.post("/auth/register", request);
+    const response = await this.apiClient.post("/auth/register", request, {
+      withCredentials: true,
+    });
 
     // Save token to localStorage
     if (response.data.token) {
@@ -94,10 +81,12 @@ export class AuthRepository implements IAuthRepository {
   async getAllUsers(currentUserId: string): Promise<User[]> {
     const token = localStorage.getItem("auth_token");
 
-    const response = await this.apiClient.get(`/auth/users?currentUserId=${currentUserId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-
-    });
+    const response = await this.apiClient.get(
+      `/auth/users?currentUserId=${currentUserId}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
     return response.data;
   }
 }
