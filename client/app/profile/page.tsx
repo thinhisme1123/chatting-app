@@ -83,7 +83,7 @@ const Profile: React.FC = () => {
     formData.append("userId", user.id);
 
     try {
-      const response = await fetch("http://localhost:3001/user/upload-avatar", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/upload-avatar`, {
         method: "POST",
         body: formData,
       });
@@ -214,7 +214,7 @@ const Profile: React.FC = () => {
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="text"
-                        value={user?.username}
+                        value={user?.username || ""}
                         onChange={(e) =>
                           handleInputChange("name", e.target.value)
                         }
@@ -232,7 +232,7 @@ const Profile: React.FC = () => {
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                       <input
                         type="email"
-                        value={user?.email}
+                        value={user?.email || ""}
                         onChange={(e) =>
                           handleInputChange("email", e.target.value)
                         }
