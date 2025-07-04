@@ -29,7 +29,6 @@ import { TypingIndicator } from "../components/parts/TypingIndicator";
 
 const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL);
 
-
 export default function ChatPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -129,7 +128,6 @@ export default function ChatPage() {
         );
       };
       document.title = selectedUser.username;
-      console.log(selectedUser);
       
       fetchHistory();
     }
@@ -476,7 +474,7 @@ export default function ChatPage() {
                 ))}
 
                 {typingUserName && (
-                  <TypingIndicator username={typingUserName} avatar={user?.avatar as string}/>
+                  <TypingIndicator username={typingUserName} avatar={selectedUser?.avatar as string}/>
                 )}
 
                 <div id="chat-end" />

@@ -7,7 +7,7 @@ export class SocketService {
   private maxReconnectAttempts = 5
 
   connect(token: string) {
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001"
+    const socketUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
     this.socket = io(socketUrl, {
       auth: { token },
