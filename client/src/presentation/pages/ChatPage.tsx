@@ -26,6 +26,8 @@ import { Message } from "@/src/domain/entities/Message";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import Link from "next/link";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
+import { ChatUseCases } from "@/src/application/usecases/ChatUseCases";
+import { ChatRepository } from "@/src/infrastructure/repositories/ChatRepository";
 
 const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL);
 
@@ -36,6 +38,8 @@ export default function ChatPage() {
   const { user, logout } = useAuth();
   const [users, setUsers] = useState<User[] | null>([]);
   const authUseCases = new AuthUseCases(new AuthRepository());
+  const chatUseCaase = new ChatUseCases(new ChatRepository());
+
   const [isMobile, setIsMobile] = useState(false);
 
   // Typing indicator states
@@ -45,6 +49,7 @@ export default function ChatPage() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [newMessageUserIds, setNewMessageUserIds] = useState<string[]>([]);
+  const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
 
   const setUserHasNewMessage = (id: string) => {
     setNewMessageUserIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
@@ -59,7 +64,6 @@ export default function ChatPage() {
       const data = await authUseCases.getAllUsers(user?.id as string);
       setUsers(data);
       if (Array.isArray(data) && data.length > 0 && !selectedUser) {
-    
         clearNewMessageForUser(data[0].id);
       }
     };
@@ -68,7 +72,7 @@ export default function ChatPage() {
     }
 
     fetchUsers();
-    
+
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
@@ -77,6 +81,31 @@ export default function ChatPage() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const fetchAllLastMessages = async () => {
+      const newMessagesMap: Record<string, string> = {};
+
+      if (!users || !user?.id) return;
+
+      for (const userItem of users) {
+        try {
+          const message = await chatUseCaase.getLastMessage(
+            user.id,
+            userItem.id
+          );
+          newMessagesMap[userItem.id] = message?.content || "No messages yet.";
+        } catch (err) {
+          console.error(`Error fetching last message for ${userItem.id}`, err);
+          newMessagesMap[userItem.id] = "Error loading message";
+        }
+      }
+
+      setLastMessages(newMessagesMap);
+    };
+
+    fetchAllLastMessages();
+  }, [users]);
 
   useEffect(() => {
     if (!user) return;
@@ -128,7 +157,7 @@ export default function ChatPage() {
         );
       };
       document.title = selectedUser.username;
-      
+
       fetchHistory();
     }
     const handleTyping = ({
@@ -301,6 +330,8 @@ export default function ChatPage() {
           <div className="p-2">
             {users?.map((userItem) => {
               const hasNew = newMessageUserIds.includes(userItem.id);
+              const lastMsg = lastMessages[userItem.id] || "No message yet.";
+
               return (
                 <div
                   key={userItem.id}
@@ -317,7 +348,7 @@ export default function ChatPage() {
                   <div className="relative">
                     <Avatar>
                       <AvatarImage
-                        src={userItem.avatar || '/images/user-placeholder.jpg'}
+                        src={userItem.avatar || "/images/user-placeholder.jpg"}
                       />
                       <AvatarFallback>
                         {userItem.username.charAt(0)}
@@ -329,15 +360,20 @@ export default function ChatPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium truncate">
-                        {userItem.username}
-                      </h3>
+                    <div className="flex justify-between">
+                      <div>
+                        <h3 className="font-medium truncate">
+                          {userItem.username}
+                        </h3>
+                        <p className="text-xs text-gray-400">{lastMsg}</p>
+                      </div>
+                      <div className="">
                       {hasNew && (
                         <Badge variant="destructive" className="text-xs">
                           Mới
                         </Badge>
                       )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -351,7 +387,9 @@ export default function ChatPage() {
           <div className="flex items-center gap-3">
             <Link href="/profile">
               <Avatar>
-                <AvatarImage src={user?.avatar || '/images/user-placeholder.jpg'} />
+                <AvatarImage
+                  src={user?.avatar || "/images/user-placeholder.jpg"}
+                />
                 <AvatarFallback>
                   {user?.username?.charAt(0) || "A"}
                 </AvatarFallback>
@@ -398,7 +436,7 @@ export default function ChatPage() {
               <div className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage
-                    src={selectedUser.avatar || '/images/user-placeholder.jpg'}
+                    src={selectedUser.avatar || "/images/user-placeholder.jpg"}
                   />
                   <AvatarFallback>
                     {selectedUser.username.charAt(0)}
@@ -439,7 +477,12 @@ export default function ChatPage() {
                   >
                     {!message.isOwn && (
                       <Avatar className="w-8 h-8">
-                        <AvatarImage src={selectedUser?.avatar || '/images/user-placeholder.jpg'} />
+                        <AvatarImage
+                          src={
+                            selectedUser?.avatar ||
+                            "/images/user-placeholder.jpg"
+                          }
+                        />
                         <AvatarFallback>
                           {message.senderName?.charAt(0) || "U"}
                         </AvatarFallback>
@@ -474,7 +517,10 @@ export default function ChatPage() {
                 ))}
 
                 {typingUserName && (
-                  <TypingIndicator username={typingUserName} avatar={selectedUser?.avatar as string}/>
+                  <TypingIndicator
+                    username={typingUserName}
+                    avatar={selectedUser?.avatar as string}
+                  />
                 )}
 
                 <div id="chat-end" />
