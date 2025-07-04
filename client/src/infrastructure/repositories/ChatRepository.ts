@@ -24,7 +24,6 @@ export class ChatRepository implements IChatRepository {
       return config
     })
   }
-
   async getConversations(): Promise<Conversation[]> {
     const response = await this.apiClient.get("/conversations")
     return response.data
@@ -33,6 +32,14 @@ export class ChatRepository implements IChatRepository {
   async getMessages(conversationId: string): Promise<Message[]> {
     const response = await this.apiClient.get(`/conversations/${conversationId}/messages`)
     return response.data
+  }
+
+  async getLastMessage(user1Id: string, user2Id: string): Promise<Message> {
+    const response = await this.apiClient.get("/messages/last", {
+    params: { user1: user1Id, user2: user2Id },
+  });
+
+  return response.data.message;
   }
 
   async sendMessage(conversationId: string, content: string): Promise<Message> {

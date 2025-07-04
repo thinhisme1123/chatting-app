@@ -11,6 +11,10 @@ export class ChatUseCases {
     return await this.chatRepository.getMessages(conversationId)
   }
 
+  async getLastMessage(user1Id: string, user2Id: string) {
+    return await this.chatRepository.getLastMessage(user1Id, user2Id)
+  }
+
   async sendMessage(conversationId: string, content: string) {
     return await this.chatRepository.sendMessage(conversationId, content)
   }
