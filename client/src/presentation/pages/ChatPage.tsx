@@ -436,14 +436,14 @@ export default function ChatPage() {
               <div className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage
-                    src={selectedUser.avatar || "/images/user-placeholder.jpg"}
+                    src={selectedUser?.avatar || "/images/user-placeholder.jpg"}
                   />
                   <AvatarFallback>
-                    {selectedUser.username.charAt(0) || "U"}
+                    {selectedUser?.username.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="font-semibold">{selectedUser.username}</h3>
+                  <h3 className="font-semibold">{selectedUser?.username}</h3>
                   <p className="text-sm text-gray-600">
                     {selectedUser.isOnline
                       ? "Đang hoạt động"
@@ -533,7 +533,7 @@ export default function ChatPage() {
                 <Input
                   value={newMessage}
                   onChange={handleInputChange}
-                  placeholder={`Nhập tin nhắn gửi ${selectedUser.username}...`}
+                  placeholder={`Nhập tin nhắn gửi ${selectedUser?.username}...`}
                   className="flex-1"
                 />
                 <Button type="submit" size="icon">
