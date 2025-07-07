@@ -351,7 +351,7 @@ export default function ChatPage() {
                         src={userItem.avatar || "/images/user-placeholder.jpg"}
                       />
                       <AvatarFallback>
-                        {userItem.username.charAt(0)}
+                        {userItem.username.charAt(0) || "U"}
                       </AvatarFallback>
                     </Avatar>
                     {userItem.isOnline && (
@@ -391,7 +391,7 @@ export default function ChatPage() {
                   src={user?.avatar || "/images/user-placeholder.jpg"}
                 />
                 <AvatarFallback>
-                  {user?.username?.charAt(0) || "A"}
+                  {user?.username?.charAt(0) || "U"}
                 </AvatarFallback>
               </Avatar>
             </Link>
@@ -439,7 +439,7 @@ export default function ChatPage() {
                     src={selectedUser.avatar || "/images/user-placeholder.jpg"}
                   />
                   <AvatarFallback>
-                    {selectedUser.username.charAt(0)}
+                    {selectedUser.username.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
