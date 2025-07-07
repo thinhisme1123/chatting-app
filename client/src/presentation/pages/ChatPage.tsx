@@ -1,33 +1,33 @@
-import type React from "react";
-import { useState, useEffect, useRef } from "react";
-import { io, Socket } from "socket.io-client";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Users,
-  Send,
-  Search,
-  Plus,
-  Settings,
-  LogOut,
-  Phone,
-  Video,
-  MoreVertical,
-  ArrowLeft,
-} from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
-import { User } from "@/src/domain/entities/User";
 import { AuthUseCases } from "@/src/application/usecases/AuthUseCases";
-import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
-import { Message } from "@/src/domain/entities/Message";
-import { playNotificationSound } from "@/src/utils/playNotificationSound";
-import Link from "next/link";
-import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { ChatUseCases } from "@/src/application/usecases/ChatUseCases";
+import { Message } from "@/src/domain/entities/Message";
+import { User } from "@/src/domain/entities/User";
+import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
 import { ChatRepository } from "@/src/infrastructure/repositories/ChatRepository";
+import { playNotificationSound } from "@/src/utils/playNotificationSound";
+import {
+  ArrowLeft,
+  LogOut,
+  MoreVertical,
+  Phone,
+  Plus,
+  Search,
+  Send,
+  Settings,
+  Users,
+  Video,
+} from "lucide-react";
+import Link from "next/link";
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
+import { TypingIndicator } from "../components/parts/TypingIndicator";
+import { useAuth } from "../contexts/AuthContext";
 
 const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL);
 
@@ -350,9 +350,6 @@ export default function ChatPage() {
                       <AvatarImage
                         src={userItem.avatar || "/images/user-placeholder.jpg"}
                       />
-                      <AvatarFallback>
-                        {userItem.username.charAt(0) || "U"}
-                      </AvatarFallback>
                     </Avatar>
                     {userItem.isOnline && (
                       <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
@@ -390,9 +387,6 @@ export default function ChatPage() {
                 <AvatarImage
                   src={user?.avatar || "/images/user-placeholder.jpg"}
                 />
-                <AvatarFallback>
-                  {user?.username?.charAt(0) || "U"}
-                </AvatarFallback>
               </Avatar>
             </Link>
             <div className="flex-1">
@@ -438,9 +432,6 @@ export default function ChatPage() {
                   <AvatarImage
                     src={selectedUser?.avatar || "/images/user-placeholder.jpg"}
                   />
-                  <AvatarFallback>
-                    {selectedUser?.username.charAt(0) || "U"}
-                  </AvatarFallback>
                 </Avatar>
                 <div>
                   <h3 className="font-semibold">{selectedUser?.username}</h3>
@@ -483,9 +474,6 @@ export default function ChatPage() {
                             "/images/user-placeholder.jpg"
                           }
                         />
-                        <AvatarFallback>
-                          {message.senderName?.charAt(0) || "U"}
-                        </AvatarFallback>
                       </Avatar>
                     )}
 
