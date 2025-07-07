@@ -76,7 +76,12 @@ export default function ChatPage() {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    if (typeof window === "undefined") return;
+
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -348,7 +353,7 @@ export default function ChatPage() {
                   <div className="relative">
                     <Avatar>
                       <AvatarImage
-                        src={userItem.avatar || "/images/user-placeholder.jpg"}
+                        src={userItem?.avatar || "/images/user-placeholder.jpg"}
                       />
                     </Avatar>
                     {userItem.isOnline && (
@@ -365,11 +370,11 @@ export default function ChatPage() {
                         <p className="text-xs text-gray-400">{lastMsg}</p>
                       </div>
                       <div className="">
-                      {hasNew && (
-                        <Badge variant="destructive" className="text-xs">
-                          Mới
-                        </Badge>
-                      )}
+                        {hasNew && (
+                          <Badge variant="destructive" className="text-xs">
+                            Mới
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
