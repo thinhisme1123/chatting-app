@@ -1,15 +1,16 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { LoginForm } from "@/src/presentation/components/auth/LoginForm"
-import { RegisterForm } from "@/src/presentation/components/auth/RegisterForm"
-import { useAuth } from "@/src/presentation/contexts/AuthContext"
-import { Button } from "@/components/ui/button"
-import { MessageCircle, Users, Zap, Shield, Heart } from "lucide-react"
-import ChatPage from "@/src/presentation/pages/ChatPage"
+import { useState } from "react";
+import { LoginForm } from "@/src/presentation/components/auth/LoginForm";
+import { RegisterForm } from "@/src/presentation/components/auth/RegisterForm";
+import { useAuth } from "@/src/presentation/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { MessageCircle, Users, Zap, Shield, Heart } from "lucide-react";
+import ChatPage from "@/src/presentation/pages/ChatPage";
+import { ErrorBoundary } from "react-error-boundary";
 
 function AuthPageContent() {
-  const [isLogin, setIsLogin] = useState(true)
+  const [isLogin, setIsLogin] = useState(true);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex">
@@ -42,8 +43,12 @@ function AuthPageContent() {
                 <Zap className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold">Tin nhắn thời gian thực</h3>
-                <p className="text-blue-100">Trò chuyện ngay lập tức với bạn bè</p>
+                <h3 className="text-xl font-semibold">
+                  Tin nhắn thời gian thực
+                </h3>
+                <p className="text-blue-100">
+                  Trò chuyện ngay lập tức với bạn bè
+                </p>
               </div>
             </div>
 
@@ -53,7 +58,9 @@ function AuthPageContent() {
               </div>
               <div>
                 <h3 className="text-xl font-semibold">Chat nhóm</h3>
-                <p className="text-blue-100">Tạo nhóm và trò chuyện cùng nhiều người</p>
+                <p className="text-blue-100">
+                  Tạo nhóm và trò chuyện cùng nhiều người
+                </p>
               </div>
             </div>
 
@@ -110,11 +117,13 @@ function AuthPageContent() {
             >
               {isLogin ? (
                 <>
-                  Chưa có tài khoản? <span className="text-blue-600 ml-1">Đăng ký ngay</span>
+                  Chưa có tài khoản?{" "}
+                  <span className="text-blue-600 ml-1">Đăng ký ngay</span>
                 </>
               ) : (
                 <>
-                  Đã có tài khoản? <span className="text-blue-600 ml-1">Đăng nhập</span>
+                  Đã có tài khoản?{" "}
+                  <span className="text-blue-600 ml-1">Đăng nhập</span>
                 </>
               )}
             </Button>
@@ -123,17 +132,18 @@ function AuthPageContent() {
           {/* Footer */}
           <div className="mt-8 text-center">
             <p className="text-xs text-gray-500 flex items-center justify-center">
-              Made with <Heart className="h-3 w-3 text-red-500 mx-1" /> by ChatApp Team
+              Made with <Heart className="h-3 w-3 text-red-500 mx-1" /> by
+              ChatApp Team
             </p>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function HomePage() {
-  const { user, loading } = useAuth()
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -143,12 +153,16 @@ export default function HomePage() {
           <p className="mt-4 text-gray-600">Đang tải...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!user) {
-    return <AuthPageContent />
+    return <AuthPageContent />;
   }
 
-  return <ChatPage />
+  return (
+    <ErrorBoundary fallback={<p>Oops! Something broke.</p>}>
+      <ChatPage />
+    </ErrorBoundary>
+  );
 }
