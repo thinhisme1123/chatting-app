@@ -28,19 +28,23 @@ import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-
-const socket: Socket = io(process.env.NEXT_PUBLIC_API_URL);
+import { AddFriendModal } from "../components/chat/AddFriendModal";
 
 export default function ChatPage() {
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const { user, logout } = useAuth();
   const [users, setUsers] = useState<User[] | null>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const authUseCases = new AuthUseCases(new AuthRepository());
   const chatUseCaase = new ChatUseCases(new ChatRepository());
 
   const [isMobile, setIsMobile] = useState(false);
+  const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
 
   // Typing indicator states
   const [typingUserName, setTypingUserName] = useState<string | null>(null);
@@ -51,6 +55,13 @@ export default function ChatPage() {
   const [newMessageUserIds, setNewMessageUserIds] = useState<string[]>([]);
   const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
 
+  // Check if we're in browser environment
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const setUserHasNewMessage = (id: string) => {
     setNewMessageUserIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
@@ -59,46 +70,100 @@ export default function ChatPage() {
     setNewMessageUserIds((prev) => prev.filter((uid) => uid !== id));
   };
 
+  // Socket initialization
   useEffect(() => {
+    if (!isClient) return;
+    
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
+    if (!API_URL) {
+      setError("API URL is not configured");
+      return;
+    }
+
+    try {
+      const newSocket = io(API_URL);
+      
+      newSocket.on('connect', () => {
+        console.log('Socket connected');
+        setSocket(newSocket);
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        setError("Failed to connect to chat server");
+      });
+
+      return () => {
+        newSocket.disconnect();
+      };
+    } catch (error) {
+      console.error('Socket initialization error:', error);
+      setError("Failed to initialize chat connection");
+    }
+  }, [isClient]);
+
+  // Initial setup
+  useEffect(() => {
+    if (!isClient) return;
+
     const fetchUsers = async () => {
-      const data = await authUseCases.getAllUsers(user?.id as string);
-      setUsers(data);
-      if (Array.isArray(data) && data.length > 0 && !selectedUser) {
-        clearNewMessageForUser(data[0].id);
+      try {
+        if (!user?.id) return;
+        
+        const data = await authUseCases.getAllUsers(user.id);
+        setUsers(data);
+        if (Array.isArray(data) && data.length > 0 && !selectedUser) {
+          clearNewMessageForUser(data[0].id);
+        }
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        setError("Failed to load users");
+        setIsLoading(false);
       }
     };
-    if (Notification.permission !== "granted") {
-      Notification.requestPermission();
-    }
 
-    fetchUsers();
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    if (typeof window === "undefined") return;
-
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+    // Request notification permission with error handling
+    const requestNotificationPermission = async () => {
+      if ('Notification' in window && Notification.permission !== "granted") {
+        try {
+          await Notification.requestPermission();
+        } catch (error) {
+          console.error('Notification permission error:', error);
+        }
+      }
     };
 
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    // Mobile detection
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        setIsMobile(window.innerWidth < 768);
+      }
+    };
 
+    fetchUsers();
+    requestNotificationPermission();
+    handleResize();
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [isClient, user]);
+
+  // Fetch last messages
   useEffect(() => {
     const fetchAllLastMessages = async () => {
-      const newMessagesMap: Record<string, string> = {};
-
       if (!users || !user?.id) return;
+
+      const newMessagesMap: Record<string, string> = {};
 
       for (const userItem of users) {
         try {
-          const message = await chatUseCaase.getLastMessage(
-            user.id,
-            userItem.id
-          );
+          const message = await chatUseCaase.getLastMessage(user.id, userItem.id);
           newMessagesMap[userItem.id] = message?.content || "No messages yet.";
         } catch (err) {
           console.error(`Error fetching last message for ${userItem.id}`, err);
@@ -110,14 +175,15 @@ export default function ChatPage() {
     };
 
     fetchAllLastMessages();
-  }, [users]);
+  }, [users, user]);
 
+  // Socket event handlers
   useEffect(() => {
-    if (!user) return;
+    if (!user || !socket) return;
 
     socket.emit("register-user", user.id);
 
-    socket.on("receive-message", (data: any) => {
+    const handleReceiveMessage = (data: any) => {
       const message = {
         ...data,
         isOwn: false,
@@ -130,29 +196,52 @@ export default function ChatPage() {
         setMessages((prev) => [...prev, message]);
       } else {
         setUserHasNewMessage(data.fromUserId);
-        document.title = `${data.senderName} đã nhắn tin cho bạn`;
-        if (Notification.permission === "granted") {
-          new Notification(`${data.senderName} đã đề cập đến bạn`, {
-            body: message.content,
-            icon: "/images/chat-icon-2.png",
-          });
+        
+        // Safe document title update
+        if (typeof document !== 'undefined') {
+          document.title = `${data.senderName} đã nhắn tin cho bạn`;
         }
-        playNotificationSound();
+        
+        // Safe notification with error handling
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === "granted") {
+          try {
+            new Notification(`${data.senderName} đã đề cập đến bạn`, {
+              body: message.content,
+              icon: "/images/chat-icon-2.png",
+            });
+          } catch (error) {
+            console.error('Notification error:', error);
+          }
+        }
+        
+        // Safe sound play
+        try {
+          playNotificationSound();
+        } catch (error) {
+          console.error('Sound play error:', error);
+        }
       }
-    });
+    };
+
+    socket.on("receive-message", handleReceiveMessage);
 
     return () => {
-      socket.off("receive-message");
+      socket.off("receive-message", handleReceiveMessage);
     };
-  }, [user, selectedUser]);
+  }, [user, selectedUser, socket]);
 
-  // fetch chat history
+  // Chat history and typing handlers
   useEffect(() => {
-    if (selectedUser && user) {
-      const fetchHistory = async () => {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/messages/history/${user.id}/${selectedUser.id}`
-        );
+    if (!selectedUser || !user || !socket) return;
+
+    const fetchHistory = async () => {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL;
+        if (!API_URL) return;
+
+        const res = await fetch(`${API_URL}/messages/history/${user.id}/${selectedUser.id}`);
+        if (!res.ok) throw new Error('Failed to fetch chat history');
+        
         const data = await res.json();
         setMessages(
           data.map((msg: Message) => ({
@@ -160,23 +249,25 @@ export default function ChatPage() {
             isOwn: msg.fromUserId === user.id,
           }))
         );
-      };
-      document.title = selectedUser.username;
+      } catch (error) {
+        console.error('Error fetching chat history:', error);
+      }
+    };
 
-      fetchHistory();
+    if (typeof document !== 'undefined') {
+      document.title = selectedUser.username;
     }
-    const handleTyping = ({
-      userId,
-      username,
-    }: {
-      userId: string;
-      username: string;
-    }) => {
+
+    fetchHistory();
+
+    const handleTyping = ({ userId, username }: { userId: string; username: string }) => {
       if (selectedUser?.id === userId) {
         setTypingUserName(username);
         setTimeout(() => {
           const el = document.querySelector("#chat-end");
-          el?.scrollIntoView({ behavior: "smooth" });
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth" });
+          }
         }, 50);
       }
     };
@@ -194,27 +285,28 @@ export default function ChatPage() {
       socket.off("user-typing", handleTyping);
       socket.off("user-stop-typing", handleStopTyping);
     };
-  }, [selectedUser]);
+  }, [selectedUser, user, socket]);
 
-  // when new message appear
+  // Auto-scroll effects
   useEffect(() => {
     if (messages.length === 0) return;
     const el = document.querySelector("#chat-end");
-    el?.scrollIntoView({ behavior: "auto" });
+    if (el) {
+      el.scrollIntoView({ behavior: "auto" });
+    }
   }, [messages]);
 
-  // Scroll when typing indicator appears/disappears
   useEffect(() => {
     const el = document.querySelector("#chat-end");
-    el?.scrollIntoView({ behavior: "smooth" });
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
   }, [usersTyping]);
 
   // Handle user selection
   const handleUserSelect = (selectedUserData: User) => {
     setSelectedUser(selectedUserData);
-    // Clear messages when switching users
     setMessages([]);
-    // Clear typing states when switching users
     setUsersTyping({});
     setIsTyping(false);
     if (typingTimeoutRef.current) {
@@ -227,9 +319,8 @@ export default function ChatPage() {
     const value = e.target.value;
     setNewMessage(value);
 
-    if (!selectedUser || !user) return;
+    if (!selectedUser || !user || !socket) return;
 
-    // Start typing indicator
     if (value.length > 0 && !isTyping) {
       setIsTyping(true);
       socket.emit("typing", {
@@ -239,21 +330,18 @@ export default function ChatPage() {
       });
     }
 
-    // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Set timeout to stop typing indicator
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
       socket.emit("stop-typing", {
         userId: user.id,
         toUserId: selectedUser.id,
       });
-    }, 1500); // Stop typing indicator after 1.5 seconds of inactivity
+    }, 1500);
 
-    // If input is empty, immediately stop typing
     if (value.length === 0) {
       setIsTyping(false);
       socket.emit("stop-typing", {
@@ -268,7 +356,7 @@ export default function ChatPage() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedUser) return;
+    if (!newMessage.trim() || !selectedUser || !socket) return;
 
     const message = {
       id: Date.now().toString(),
@@ -282,7 +370,9 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, message]);
     setTimeout(() => {
       const el = document.querySelector("#chat-end");
-      el?.scrollIntoView({ behavior: "smooth" });
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
     }, 50);
 
     socket.emit("send-message", {
@@ -292,7 +382,6 @@ export default function ChatPage() {
       message: newMessage,
     });
 
-    // Stop typing when message is sent
     setIsTyping(false);
     socket.emit("stop-typing", {
       userId: user?.id,
@@ -304,6 +393,32 @@ export default function ChatPage() {
 
     setNewMessage("");
   };
+
+  // Loading state
+  if (!isClient || isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Loading chat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center text-red-600">
+          <p className="mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col md:flex-row bg-gray-50">
@@ -317,7 +432,7 @@ export default function ChatPage() {
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Tin nhắn</h2>
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" onClick={() => setIsAddFriendModalOpen(true)}>
               <Plus className="h-4 w-4" />
             </Button>
           </div>
@@ -536,7 +651,6 @@ export default function ChatPage() {
             </div>
           </>
         ) : (
-          // No user selected state
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -550,6 +664,15 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+      
+      {/* Add Friend Modal Component */}
+      <AddFriendModal
+        isOpen={isAddFriendModalOpen}
+        onOpenChange={setIsAddFriendModalOpen}
+        onUserSelect={handleUserSelect}
+        authUseCases={authUseCases}
+        currentUserId={user?.id}
+      />
     </div>
   );
 }
