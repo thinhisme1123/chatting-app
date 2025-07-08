@@ -26,4 +26,5 @@ export class AuthUseCases {
   async getAllUsers(currentUserId: string): Promise<User[] | null> {
     return this.authRepository.getAllUsers(currentUserId);
   }
+
 }
