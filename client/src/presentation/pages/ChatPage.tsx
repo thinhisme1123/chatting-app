@@ -29,6 +29,9 @@ import { io, Socket } from "socket.io-client";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import { AddFriendModal } from "../components/chat/AddFriendModal";
+import { FriendUseCases } from "@/src/application/usecases/FriendUseCases";
+import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
+import { NotificationBar } from "../components/chat/Notfication";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -42,6 +45,7 @@ export default function ChatPage() {
   
   const authUseCases = new AuthUseCases(new AuthRepository());
   const chatUseCaase = new ChatUseCases(new ChatRepository());
+  const friendUseCases = new FriendUseCases(new FriendRepository());
 
   const [isMobile, setIsMobile] = useState(false);
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
@@ -526,7 +530,6 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
-
       {/* Right Side - Chat Area */}
       <div
         className={`
@@ -534,6 +537,7 @@ export default function ChatPage() {
           ${!selectedUser && isMobile ? "hidden" : "flex"}
         `}
       >
+        <NotificationBar/>
         {selectedUser ? (
           <>
             {/* Chat Header */}
@@ -670,7 +674,7 @@ export default function ChatPage() {
         isOpen={isAddFriendModalOpen}
         onOpenChange={setIsAddFriendModalOpen}
         onUserSelect={handleUserSelect}
-        authUseCases={authUseCases}
+        friendUseCases={friendUseCases}
         currentUserId={user?.id}
       />
     </div>

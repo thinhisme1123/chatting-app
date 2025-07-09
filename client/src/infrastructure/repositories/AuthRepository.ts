@@ -8,7 +8,7 @@ import type { User } from "../../domain/entities/User";
 import axios, { type AxiosInstance } from "axios";
 
 export class AuthRepository implements IAuthRepository {
-  private apiClient: AxiosInstance;
+  private readonly apiClient: AxiosInstance;
 
   constructor() {
     this.apiClient = axios.create({

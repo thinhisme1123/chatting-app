@@ -1,74 +1,124 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useRef, useCallback } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Loader2, UserX } from "lucide-react"
-import type { User } from "../../../domain/entities/User"
-import type { AuthUseCases } from "../../../application/usecases/AuthUseCases"
+import type React from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Search, Loader2, UserX } from "lucide-react";
+import type { User } from "../../../domain/entities/User";
+import type { AuthUseCases } from "../../../application/usecases/AuthUseCases";
+import { FriendUseCases } from "@/src/application/usecases/FriendUseCases";
+import toast from "react-hot-toast";
 
 interface AddFriendModalProps {
-  isOpen: boolean
-  onOpenChange: (open: boolean) => void
-  onUserSelect: (user: User) => void
-  authUseCases: AuthUseCases
-  currentUserId?: string
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUserSelect: (user: User) => void;
+  friendUseCases: FriendUseCases;
+  currentUserId?: string;
 }
 
 export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   isOpen,
   onOpenChange,
   onUserSelect,
-  authUseCases,
+  friendUseCases,
   currentUserId,
 }) => {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<User[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [sentRequestIds, setSentRequestIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchSentRequests = async () => {
+      try {
+        const ids = await friendUseCases.getSentFriendRequestIds(currentUserId!);
+        setSentRequestIds(ids);
+      } catch (err) {
+        console.error("Failed to fetch sent requests", err);
+      }
+    };
+
+    if (isOpen) {
+      fetchSentRequests();
+    }
+  }, [isOpen, friendUseCases]);
 
   // Debounced search function
   const handleSearch = useCallback(
     (query: string) => {
-      setSearchQuery(query)
+      setSearchQuery(query);
       if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
+        clearTimeout(searchTimeoutRef.current);
       }
 
       if (!query.trim()) {
-        setSearchResults([])
-        setIsSearching(false)
-        return
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
       }
 
-      setIsSearching(true)
+      setIsSearching(true);
       searchTimeoutRef.current = setTimeout(async () => {
         try {
-        //   const results = await authUseCases.searchUsers(query)
-          // Filter out the current user from search results
-        //   setSearchResults(results.filter((u) => u.id !== currentUserId))
-        console.log(query);
-        
+          const results = await friendUseCases.searchUsers(
+            query,
+            currentUserId!
+          );
+          setSearchResults(results);
         } catch (error) {
-          console.error("Search failed:", error)
-          setSearchResults([])
+          console.error("Search failed:", error);
+          setSearchResults([]);
         } finally {
-          setIsSearching(false)
+          setIsSearching(false);
         }
-      }, 500) // Debounce for 500ms
+      }, 500); // Debounce for 500ms
     },
-    [authUseCases, currentUserId],
-    
-  )
+    [friendUseCases, currentUserId]
+  );
+
+  const handleAddFriend = async (e: React.MouseEvent, targetUserId: string) => {
+    e.stopPropagation();
+    try {
+      await friendUseCases.sendFriendRequest(currentUserId!, targetUserId);
+      setSentRequestIds((prev) => [...prev, targetUserId]);
+
+      toast.success("Gửi lời mời kết bạn thành công!", {
+        duration: 4000,
+        style: {
+          border: "1px solid #4ade80",
+          padding: "12px",
+          color: "#16a34a",
+        },
+        iconTheme: {
+          primary: "#4ade80",
+          secondary: "#f0fdf4",
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Gửi lời mời thất bại!");
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] p-6">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-center">Kết bạn mới</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-center">
+            Kết bạn mới
+          </DialogTitle>
           <DialogDescription className="text-center text-gray-500">
             Tìm kiếm người dùng bằng tên hoặc email để bắt đầu trò chuyện.
           </DialogDescription>
@@ -105,24 +155,33 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                 {searchResults.map((resultUser) => (
                   <div
                     key={resultUser.id}
-                    className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer"
-                    onClick={() => {
-                      onUserSelect(resultUser)
-                      onOpenChange(false) // Close modal after selection
-                      setSearchQuery("") // Clear search query
-                      setSearchResults([]) // Clear search results
-                    }}
+                    className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50"
                   >
                     <Avatar className="w-9 h-9">
-                      <AvatarImage src={resultUser.avatar || "/placeholder.svg"} />
-                      <AvatarFallback>{resultUser.username.charAt(0).toUpperCase()}</AvatarFallback>
+                      <AvatarImage
+                        src={resultUser.avatar || "/placeholder.svg"}
+                      />
+                      <AvatarFallback>
+                        {resultUser.username.charAt(0).toUpperCase()}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <p className="font-medium text-sm">{resultUser.username}</p>
-                      <p className="text-xs text-gray-500">{resultUser.email}</p>
+                      <p className="font-medium text-sm">
+                        {resultUser.username}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {resultUser.email}
+                      </p>
                     </div>
-                    <Button variant="outline" size="sm">
-                      Kết bạn
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={sentRequestIds.includes(resultUser.id)}
+                      onClick={(e) => handleAddFriend(e, resultUser.id)}
+                    >
+                      {sentRequestIds.includes(resultUser.id)
+                        ? "Đã gửi lời mời"
+                        : "Kết bạn"}
                     </Button>
                   </div>
                 ))}
@@ -132,5 +191,5 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
+  );
+};
