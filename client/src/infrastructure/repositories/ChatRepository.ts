@@ -4,7 +4,7 @@ import type { Message } from "../../domain/entities/Message"
 import axios, { type AxiosInstance } from "axios"
 
 export class ChatRepository implements IChatRepository {
-  private apiClient: AxiosInstance
+  private readonly apiClient: AxiosInstance
 
   constructor() {
     this.apiClient = axios.create({
