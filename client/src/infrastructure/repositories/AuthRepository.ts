@@ -3,7 +3,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   AuthResponse,
-} from "../../domain/repositories/IAuthRepository";
+} from "../../domain/interfaces/IAuthRepository";
 import type { User } from "../../domain/entities/User";
 import axios, { type AxiosInstance } from "axios";
 

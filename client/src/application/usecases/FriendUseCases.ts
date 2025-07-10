@@ -1,5 +1,5 @@
 // application/usecases/FriendUseCases.ts
-import { IFriendRepository } from "@/src/domain/repositories/IFriendRepository";
+import { IFriendRepository } from "@/src/domain/interfaces/IFriendRepository";
 
 export class FriendUseCases {
   constructor(private friendRepository: IFriendRepository) {}

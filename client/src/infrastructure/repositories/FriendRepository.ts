@@ -1,5 +1,5 @@
 // infrastructure/repositories/FriendRepository.ts
-import { IFriendRepository } from "@/src/domain/repositories/IFriendRepository";
+import { IFriendRepository } from "@/src/domain/interfaces/IFriendRepository";
 import { User } from "@/src/domain/entities/User";
 import axios, { AxiosInstance } from "axios";
 

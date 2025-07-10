@@ -3,7 +3,7 @@ import type {
   IAuthRepository,
   LoginRequest,
   RegisterRequest,
-} from "../../domain/repositories/IAuthRepository";
+} from "../../domain/interfaces/IAuthRepository";
 
 export class AuthUseCases {
   constructor(private authRepository: IAuthRepository) {}

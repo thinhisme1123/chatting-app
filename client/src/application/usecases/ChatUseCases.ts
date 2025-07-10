@@ -1,4 +1,4 @@
-import type { IChatRepository } from "../../domain/repositories/IChatRepository"
+import type { IChatRepository } from "../../domain/interfaces/IChatRepository"
 
 export class ChatUseCases {
   constructor(private chatRepository: IChatRepository) {}

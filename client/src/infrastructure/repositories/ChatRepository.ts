@@ -1,4 +1,4 @@
-import type { IChatRepository } from "../../domain/repositories/IChatRepository"
+import type { IChatRepository } from "../../domain/interfaces/IChatRepository"
 import type { Conversation } from "../../domain/entities/Conversation"
 import type { Message } from "../../domain/entities/Message"
 import axios, { type AxiosInstance } from "axios"
