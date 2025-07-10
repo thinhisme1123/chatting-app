@@ -1,6 +1,5 @@
 "use client";
 
-import type React from "react";
 import { useState, useEffect } from "react";
 import { Bell, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,52 +14,29 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-
-interface NotificationItem {
-  id: string;
-  message: string;
-  timestamp: Date;
-  read: boolean;
-}
-
-// Fake data for notifications
-const initialNotifications: NotificationItem[] = [
-  {
-    id: "1",
-    message: "Nguyễn Văn A đã gửi cho bạn một tin nhắn mới.",
-    timestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-    read: false,
-  },
-  {
-    id: "2",
-    message: "Lê Thị B đã chấp nhận lời mời kết bạn của bạn.",
-    timestamp: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-    read: false,
-  },
-  {
-    id: "3",
-    message: "Bạn có 3 tin nhắn chưa đọc trong nhóm 'Dự án ABC'.",
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    read: true,
-  },
-  {
-    id: "4",
-    message: "Hệ thống: Đã có b��n cập nhật mới cho ứng dụng.",
-    timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-    read: false,
-  },
-  {
-    id: "5",
-    message: "Trần Văn C đã gửi cho bạn một hình ảnh.",
-    timestamp: new Date(Date.now() - 1.5 * 24 * 60 * 60 * 1000), // 1.5 days ago
-    read: true,
-  },
-];
+import { useAuth } from "../../contexts/AuthContext";
+import { NotificationUseCases } from "@/src/application/usecases/NotificationUseCases";
+import { NotificationRepository } from "@/src/infrastructure/repositories/NotificationRepository";
+import { Notification } from "@/src/domain/entities/Notification";
+import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 
 export const NotificationBar: React.FC = () => {
-  const [notifications, setNotifications] =
-    useState<NotificationItem[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const { user } = useAuth();
+
+  const notificationUseCases = new NotificationUseCases(
+    new NotificationRepository()
+  );
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const fetchNotifications = async () => {
+      const data = await notificationUseCases.getUserNotifications(user.id);
+      setNotifications(data);
+    };
+    fetchNotifications();
+  }, [user]);
 
   useEffect(() => {
     const count = notifications.filter((n) => !n.read).length;
@@ -69,22 +45,30 @@ export const NotificationBar: React.FC = () => {
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    console.log(notifications);
   };
 
   const formatTimeAgo = (date: Date): string => {
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+    const mins = Math.floor(seconds / 60);
+    if (mins < 1) return "vài giây trước";
+    if (mins < 60) return `${mins} phút trước`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} giờ trước`;
+    const days = Math.floor(hours / 24);
+    return `${days} ngày trước`;
+  };
 
-    let interval = seconds / 31536000;
-    if (interval > 1) return Math.floor(interval) + " năm trước";
-    interval = seconds / 2592000;
-    if (interval > 1) return Math.floor(interval) + " tháng trước";
-    interval = seconds / 86400;
-    if (interval > 1) return Math.floor(interval) + " ngày trước";
-    interval = seconds / 3600;
-    if (interval > 1) return Math.floor(interval) + " giờ trước";
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + " phút trước";
-    return "vài giây trước";
+  const handleAcceptFriendRequest = async (requestId: string) => {
+    try {
+      console.log("Đã chấp nhận request với ID:", requestId);
+      // TODO: gọi API ở đây, ví dụ:
+      // await friendUseCases.acceptRequest(requestId);
+      // sau đó cập nhật lại UI:
+      setNotifications((prev) => prev.filter((n) => n.id !== requestId));
+    } catch (error) {
+      console.error("Lỗi khi chấp nhận lời mời:", error);
+    }
   };
 
   return (
@@ -131,23 +115,49 @@ export const NotificationBar: React.FC = () => {
                 <DropdownMenuItem
                   key={notification.id}
                   className={cn(
-                    "flex flex-col items-start space-y-1 p-2 cursor-pointer",
+                    "flex items-start gap-2 p-2 cursor-pointer",
                     !notification.read && "bg-blue-50/50"
                   )}
                   onClick={() => {
-                    // Optionally mark individual notification as read
                     setNotifications((prev) =>
                       prev.map((n) =>
                         n.id === notification.id ? { ...n, read: true } : n
                       )
                     );
-                    // Add navigation logic here if needed
                   }}
                 >
-                  <p className="text-sm font-medium">{notification.message}</p>
-                  <span className="text-xs text-gray-500">
-                    {formatTimeAgo(notification.timestamp)}
-                  </span>
+                  <Avatar className="w-9 h-9 mt-1 rounded-full overflow-hidden">
+                    <AvatarImage
+                      src={notification.fromUser.avatar || "/placeholder.svg"}
+                      alt={notification.fromUser.username}
+                    />
+                    <AvatarFallback>
+                      {notification.fromUser.username.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-tight">
+                      <span className="font-semibold">
+                        {notification.fromUser.username}
+                      </span>{" "}
+                      đã gửi cho bạn lời mời kết bạn
+                    </p>
+                    <span className="text-xs text-gray-500">
+                      {formatTimeAgo(new Date(notification.createdAt))}
+                    </span>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    className="text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation(); // prevent parent onClick
+                      handleAcceptFriendRequest(notification.id);
+                    }}
+                  >
+                    Chấp nhận
+                  </Button>
                 </DropdownMenuItem>
               ))
             )}
