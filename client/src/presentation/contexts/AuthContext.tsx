@@ -3,7 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "../../domain/entities/User"
-import { AuthUseCases } from "../../application/usecases/AuthUseCases"
+import { AuthUseCases } from "../../application/usecases/AuthUseCases.query"
 import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository"
 
 interface AuthContextType {

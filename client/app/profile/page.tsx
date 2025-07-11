@@ -1,6 +1,6 @@
 "use client";
 
-import { AuthUseCases } from "@/src/application/usecases/AuthUseCases";
+import { AuthUseCases } from "@/src/application/usecases/AuthUseCases.query";
 import { User as UserModel } from "@/src/domain/entities/User";
 import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
 import {

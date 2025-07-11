@@ -1,22 +1,21 @@
 "use client";
 
-import type React from "react";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Loader2, UserX } from "lucide-react";
-import type { User } from "../../../domain/entities/User";
-import type { AuthUseCases } from "../../../application/usecases/AuthUseCases";
-import { FriendUseCases } from "@/src/application/usecases/FriendUseCases";
+import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
+import { Loader2, Search, UserX } from "lucide-react";
+import type React from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import type { User } from "../../../domain/entities/User";
 
 interface AddFriendModalProps {
   isOpen: boolean;

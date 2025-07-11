@@ -15,15 +15,18 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../../contexts/AuthContext";
-import { NotificationUseCases } from "@/src/application/usecases/NotificationUseCases";
+import { NotificationUseCases } from "@/src/application/usecases/NotificationUseCases.query";
 import { NotificationRepository } from "@/src/infrastructure/repositories/NotificationRepository";
 import { Notification } from "@/src/domain/entities/Notification";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
+import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
+import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
 
 export const NotificationBar: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuth();
+  const friendUseCases = new FriendUseCases(new FriendRepository());
 
   const notificationUseCases = new NotificationUseCases(
     new NotificationRepository()
@@ -45,7 +48,6 @@ export const NotificationBar: React.FC = () => {
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    console.log(notifications);
   };
 
   const formatTimeAgo = (date: Date): string => {
@@ -61,13 +63,11 @@ export const NotificationBar: React.FC = () => {
 
   const handleAcceptFriendRequest = async (requestId: string) => {
     try {
-      console.log("Đã chấp nhận request với ID:", requestId);
-      // TODO: gọi API ở đây, ví dụ:
-      // await friendUseCases.acceptRequest(requestId);
-      // sau đó cập nhật lại UI:
+      await friendUseCases.respondToRequest(requestId, "accept");
+
       setNotifications((prev) => prev.filter((n) => n.id !== requestId));
     } catch (error) {
-      console.error("Lỗi khi chấp nhận lời mời:", error);
+      console.error("❌ Accept friend request failed:", error);
     }
   };
 
@@ -152,7 +152,7 @@ export const NotificationBar: React.FC = () => {
                     size="sm"
                     className="text-xs"
                     onClick={(e) => {
-                      e.stopPropagation(); // prevent parent onClick
+                      e.stopPropagation();
                       handleAcceptFriendRequest(notification.id);
                     }}
                   >
