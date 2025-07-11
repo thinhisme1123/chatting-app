@@ -5,4 +5,10 @@ export interface IFriendRepository {
   searchUsers(query: string, currentUserId: string): Promise<User[]>;
   sendFriendRequest(fromUserId: string, toUserId: string): Promise<any>;
   getSentFriendRequestIds(currentUserId: string): Promise<string[]>;
+  respondToRequest(
+    requestId: string,
+    action: "accept" | "reject"
+  ): Promise<void>;
+  getConfirmedFriends(currentUserId: string): Promise<User[]>;
+  searchConfirmedFriends(userId: string, query: string): Promise<User[]>;
 }

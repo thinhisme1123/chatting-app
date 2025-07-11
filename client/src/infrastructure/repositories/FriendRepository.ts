@@ -15,7 +15,6 @@ export class FriendRepository implements IFriendRepository {
       },
     });
 
-    // ✅ Auto attach token from localStorage
     this.apiClient.interceptors.request.use((config) => {
       const token = localStorage.getItem("auth_token");
       if (token) {
@@ -25,6 +24,7 @@ export class FriendRepository implements IFriendRepository {
     });
   }
 
+  // POST: get users by keyword
   async searchUsers(query: string, currentUserId: string): Promise<User[]> {
     const response = await this.apiClient.post(
       `/friend/search`,
@@ -40,6 +40,7 @@ export class FriendRepository implements IFriendRepository {
     return response.data;
   }
 
+  // POST: send add friend request
   async sendFriendRequest(fromUserId: string, toUserId: string): Promise<any> {
     const response = await this.apiClient.post(`/friend/request`, {
       fromUserId,
@@ -48,9 +49,39 @@ export class FriendRepository implements IFriendRepository {
     return response.data;
   }
 
+  // POST: get friend the user sent
   async getSentFriendRequestIds(currentUserId: string): Promise<string[]> {
     const response = await this.apiClient.post(`/friend/sent`, {
       userId: currentUserId,
+    });
+    return response.data;
+  }
+
+  // POST: update the reponse of the add friend request
+  async respondToRequest(
+    requestId: string,
+    action: "accept" | "reject"
+  ): Promise<void> {
+    await this.apiClient.post("/friend/respond", { requestId, action });
+  }
+
+  // GET: get confirm friend and list ChatPage
+  async getConfirmedFriends(currentUserId: string): Promise<User[]> {
+    const response = await this.apiClient.post("/friend/list", {
+      userId: currentUserId,
+    });
+    return response.data;
+  }
+
+  async searchConfirmedFriends(
+    userId: string,
+    query: string
+  ): Promise<User[]> {
+    const response = await this.apiClient.get(`/friend/search`, {
+      params: {
+        userId,
+        query,
+      },
     });
     return response.data;
   }

@@ -3,8 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AuthUseCases } from "@/src/application/usecases/AuthUseCases";
-import { ChatUseCases } from "@/src/application/usecases/ChatUseCases";
+import { AuthUseCases } from "@/src/application/usecases/AuthUseCases.query";
+import { ChatUseCases } from "@/src/application/usecases/ChatUseCases.query";
 import { Message } from "@/src/domain/entities/Message";
 import { User } from "@/src/domain/entities/User";
 import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
@@ -29,7 +29,7 @@ import { io, Socket } from "socket.io-client";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import { AddFriendModal } from "../components/chat/AddFriendModal";
-import { FriendUseCases } from "@/src/application/usecases/FriendUseCases";
+import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
 import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
 import { NotificationBar } from "../components/chat/Notfication";
 
@@ -42,9 +42,11 @@ export default function ChatPage() {
   const [users, setUsers] = useState<User[] | null>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const authUseCases = new AuthUseCases(new AuthRepository());
-  const chatUseCaase = new ChatUseCases(new ChatRepository());
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+
+  const chatUseCases = new ChatUseCases(new ChatRepository());
   const friendUseCases = new FriendUseCases(new FriendRepository());
 
   const [isMobile, setIsMobile] = useState(false);
@@ -74,10 +76,23 @@ export default function ChatPage() {
     setNewMessageUserIds((prev) => prev.filter((uid) => uid !== id));
   };
 
+  const updateLastMessageForUser = async (friendId: string) => {
+    if (!user?.id) return;
+    try {
+      const message = await chatUseCases.getLastMessage(user.id, friendId);
+      setLastMessages((prev) => ({
+        ...prev,
+        [friendId]: message?.content || "No messages yet.",
+      }));
+    } catch (err) {
+      console.error("Error updating last message:", err);
+    }
+  };
+
   // Socket initialization
   useEffect(() => {
     if (!isClient) return;
-    
+
     const API_URL = process.env.NEXT_PUBLIC_API_URL;
     if (!API_URL) {
       setError("API URL is not configured");
@@ -86,14 +101,14 @@ export default function ChatPage() {
 
     try {
       const newSocket = io(API_URL);
-      
-      newSocket.on('connect', () => {
-        console.log('Socket connected');
+
+      newSocket.on("connect", () => {
+        console.log("Socket connected");
         setSocket(newSocket);
       });
 
-      newSocket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
+      newSocket.on("connect_error", (error) => {
+        console.error("Socket connection error:", error);
         setError("Failed to connect to chat server");
       });
 
@@ -101,7 +116,7 @@ export default function ChatPage() {
         newSocket.disconnect();
       };
     } catch (error) {
-      console.error('Socket initialization error:', error);
+      console.error("Socket initialization error:", error);
       setError("Failed to initialize chat connection");
     }
   }, [isClient]);
@@ -113,15 +128,15 @@ export default function ChatPage() {
     const fetchUsers = async () => {
       try {
         if (!user?.id) return;
-        
-        const data = await authUseCases.getAllUsers(user.id);
+
+        const data = await friendUseCases.getConfirmedFriends(user.id);
         setUsers(data);
         if (Array.isArray(data) && data.length > 0 && !selectedUser) {
           clearNewMessageForUser(data[0].id);
         }
         setIsLoading(false);
       } catch (error) {
-        console.error('Error fetching users:', error);
+        console.error("Error fetching users:", error);
         setError("Failed to load users");
         setIsLoading(false);
       }
@@ -129,11 +144,11 @@ export default function ChatPage() {
 
     // Request notification permission with error handling
     const requestNotificationPermission = async () => {
-      if ('Notification' in window && Notification.permission !== "granted") {
+      if ("Notification" in window && Notification.permission !== "granted") {
         try {
           await Notification.requestPermission();
         } catch (error) {
-          console.error('Notification permission error:', error);
+          console.error("Notification permission error:", error);
         }
       }
     };
@@ -167,7 +182,10 @@ export default function ChatPage() {
 
       for (const userItem of users) {
         try {
-          const message = await chatUseCaase.getLastMessage(user.id, userItem.id);
+          const message = await chatUseCases.getLastMessage(
+            user.id,
+            userItem.id
+          );
           newMessagesMap[userItem.id] = message?.content || "No messages yet.";
         } catch (err) {
           console.error(`Error fetching last message for ${userItem.id}`, err);
@@ -198,31 +216,37 @@ export default function ChatPage() {
         selectedUser?.id === data.toUserId
       ) {
         setMessages((prev) => [...prev, message]);
+
+        updateLastMessageForUser(data.fromUserId);
       } else {
         setUserHasNewMessage(data.fromUserId);
-        
+        updateLastMessageForUser(data.fromUserId);
         // Safe document title update
-        if (typeof document !== 'undefined') {
+        if (typeof document !== "undefined") {
           document.title = `${data.senderName} đã nhắn tin cho bạn`;
         }
-        
+
         // Safe notification with error handling
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === "granted") {
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
           try {
             new Notification(`${data.senderName} đã đề cập đến bạn`, {
               body: message.content,
               icon: "/images/chat-icon-2.png",
             });
           } catch (error) {
-            console.error('Notification error:', error);
+            console.error("Notification error:", error);
           }
         }
-        
+
         // Safe sound play
         try {
           playNotificationSound();
         } catch (error) {
-          console.error('Sound play error:', error);
+          console.error("Sound play error:", error);
         }
       }
     };
@@ -243,9 +267,11 @@ export default function ChatPage() {
         const API_URL = process.env.NEXT_PUBLIC_API_URL;
         if (!API_URL) return;
 
-        const res = await fetch(`${API_URL}/messages/history/${user.id}/${selectedUser.id}`);
-        if (!res.ok) throw new Error('Failed to fetch chat history');
-        
+        const res = await fetch(
+          `${API_URL}/messages/history/${user.id}/${selectedUser.id}`
+        );
+        if (!res.ok) throw new Error("Failed to fetch chat history");
+
         const data = await res.json();
         setMessages(
           data.map((msg: Message) => ({
@@ -254,17 +280,23 @@ export default function ChatPage() {
           }))
         );
       } catch (error) {
-        console.error('Error fetching chat history:', error);
+        console.error("Error fetching chat history:", error);
       }
     };
 
-    if (typeof document !== 'undefined') {
+    if (typeof document !== "undefined") {
       document.title = selectedUser.username;
     }
 
     fetchHistory();
 
-    const handleTyping = ({ userId, username }: { userId: string; username: string }) => {
+    const handleTyping = ({
+      userId,
+      username,
+    }: {
+      userId: string;
+      username: string;
+    }) => {
       if (selectedUser?.id === userId) {
         setTypingUserName(username);
         setTimeout(() => {
@@ -300,12 +332,31 @@ export default function ChatPage() {
     }
   }, [messages]);
 
+  //handle search friends
   useEffect(() => {
     const el = document.querySelector("#chat-end");
     if (el) {
       el.scrollIntoView({ behavior: "smooth" });
     }
   }, [usersTyping]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const delayDebounce = setTimeout(async () => {
+      if (searchQuery.trim() === "") {
+        setFilteredUsers(users || []);
+      } else {
+        const result = await friendUseCases.searchConfirmedFriends(
+          user.id,
+          searchQuery
+        );
+        setFilteredUsers(result);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery]);
 
   // Handle user selection
   const handleUserSelect = (selectedUserData: User) => {
@@ -396,6 +447,7 @@ export default function ChatPage() {
     }
 
     setNewMessage("");
+    updateLastMessageForUser(selectedUser.id);
   };
 
   // Loading state
@@ -416,9 +468,7 @@ export default function ChatPage() {
       <div className="h-screen flex items-center justify-center">
         <div className="text-center text-red-600">
           <p className="mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
-            Retry
-          </Button>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </div>
     );
@@ -436,7 +486,11 @@ export default function ChatPage() {
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Tin nhắn</h2>
-            <Button variant="ghost" size="sm" onClick={() => setIsAddFriendModalOpen(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsAddFriendModalOpen(true)}
+            >
               <Plus className="h-4 w-4" />
             </Button>
           </div>
@@ -446,18 +500,21 @@ export default function ChatPage() {
             <Input
               placeholder="Tìm kiếm cuộc trò chuyện..."
               className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
         <ScrollArea className="flex-1">
           <div className="p-2">
-            {users?.map((userItem) => {
+            {(searchQuery.trim() ? filteredUsers : users)?.map((userItem) => {
               const hasNew = newMessageUserIds.includes(userItem.id);
               const lastMsg = lastMessages[userItem.id] || "No message yet.";
 
               return (
                 <div
+                  role="button"
                   key={userItem.id}
                   onClick={() => {
                     handleUserSelect(userItem);
@@ -537,7 +594,7 @@ export default function ChatPage() {
           ${!selectedUser && isMobile ? "hidden" : "flex"}
         `}
       >
-        <NotificationBar/>
+        <NotificationBar />
         {selectedUser ? (
           <>
             {/* Chat Header */}
@@ -668,7 +725,7 @@ export default function ChatPage() {
           </div>
         )}
       </div>
-      
+
       {/* Add Friend Modal Component */}
       <AddFriendModal
         isOpen={isAddFriendModalOpen}
