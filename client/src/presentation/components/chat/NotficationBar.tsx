@@ -17,22 +17,23 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "../../contexts/AuthContext";
 import { NotificationUseCases } from "@/src/application/usecases/NotificationUseCases.query";
 import { NotificationRepository } from "@/src/infrastructure/repositories/NotificationRepository";
-import { FriendRequestNotification } from "@/src/domain/entities/Notification";
+import {
+  AppNotification,
+  FriendRequestNotification,
+} from "@/src/domain/entities/Notification";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
 import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
-import "../../../../styles/notification.scss"
+import "../../../../styles/notification.scss";
 
 interface NotificationBarProps {
-  newNotfications: FriendRequestNotification[];
+  newNotfications: AppNotification[];
 }
 
 export const NotificationBar: React.FC<NotificationBarProps> = ({
   newNotfications,
 }) => {
-  const [notifications, setNotifications] = useState<
-    FriendRequestNotification[]
-  >([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [triggerBell, setTriggerBell] = useState(false);
   const { user } = useAuth();
@@ -44,20 +45,36 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
 
   useEffect(() => {
     if (newNotfications) {
-      setNotifications(newNotfications);
+      setNotifications((prev) => {
+        const ids = new Set(newNotfications.map((n) => n.id));
+        const merged = [
+          ...newNotfications,
+          ...prev.filter((n) => !ids.has(n.id)),
+        ];
+        return merged;
+      });
     }
   }, [newNotfications]);
 
   useEffect(() => {
     if (!user?.id) return;
-    console.log(123);
 
     const fetchNotifications = async () => {
-      const data = await notificationUseCases.getUserNotifications(user.id);
-      setNotifications(data);
+      const friendRequestData = await notificationUseCases.getUserNotifications(
+        user.id
+      );
+      const appNotifs: AppNotification[] = friendRequestData.map((f) => ({
+        ...f,
+        type: "friend-request",
+      }));
+
+      setNotifications((prev) => {
+        const filtered = prev.filter((n) => n.type !== "friend-request");
+        return [...appNotifs, ...filtered];
+      });
     };
     fetchNotifications();
-  }, [user, newNotfications]);
+  }, [user]);
 
   useEffect(() => {
     const count = notifications.filter((n) => !n.read).length;
@@ -108,7 +125,11 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
     <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative me-2 focus:outline-none focus:ring-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative me-2 focus:outline-none focus:ring-0"
+          >
             <Bell
               className={cn(
                 "h-5 w-5 transition-transform",
@@ -149,55 +170,106 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                 Không có thông báo nào.
               </div>
             ) : (
-              notifications.map((notification) => (
-                <DropdownMenuItem
-                  key={notification.id}
-                  className={cn(
-                    "flex items-start gap-2 p-2 cursor-pointer",
-                    !notification.read && "bg-blue-50/50"
-                  )}
-                  onClick={() => {
-                    setNotifications((prev) =>
-                      prev.map((n) =>
-                        n.id === notification.id ? { ...n, read: true } : n
-                      )
-                    );
-                  }}
-                >
-                  <Avatar className="w-9 h-9 mt-1 rounded-full overflow-hidden">
-                    <AvatarImage
-                      src={notification.fromUser.avatar || "/placeholder.svg"}
-                      alt={notification.fromUser.username}
-                    />
-                    <AvatarFallback>
-                      {notification.fromUser.username.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+              notifications.map((notification) => {
+                if (notification.type === "friend-request") {
+                  return (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={cn(
+                        "flex items-start gap-2 p-2 cursor-pointer",
+                        !notification.read && "bg-blue-50/50"
+                      )}
+                      onClick={() => {
+                        setNotifications((prev) =>
+                          prev.map((n) =>
+                            n.id === notification.id ? { ...n, read: true } : n
+                          )
+                        );
+                      }}
+                    >
+                      <Avatar className="w-9 h-9 mt-1 rounded-full overflow-hidden">
+                        <AvatarImage
+                          src={
+                            notification.fromUser.avatar || "/placeholder.svg"
+                          }
+                          alt={notification.fromUser.username}
+                        />
+                        <AvatarFallback>
+                          {notification.fromUser.username
+                            .charAt(0)
+                            .toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
 
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-tight">
-                      <span className="font-semibold">
-                        {notification.fromUser.username}
-                      </span>{" "}
-                      đã gửi cho bạn lời mời kết bạn
-                    </p>
-                    <span className="text-xs text-gray-500">
-                      {formatTimeAgo(new Date(notification.createdAt))}
-                    </span>
-                  </div>
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-tight">
+                          <span className="font-semibold">
+                            {notification.fromUser.username}
+                          </span>{" "}
+                          đã gửi cho bạn lời mời kết bạn
+                        </p>
+                        <span className="text-xs text-gray-500">
+                          {formatTimeAgo(new Date(notification.createdAt))}
+                        </span>
+                      </div>
 
-                  <Button
-                    size="sm"
-                    className="text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAcceptFriendRequest(notification.id);
-                    }}
-                  >
-                    Chấp nhận
-                  </Button>
-                </DropdownMenuItem>
-              ))
+                      <Button
+                        size="sm"
+                        className="text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAcceptFriendRequest(notification.id);
+                        }}
+                      >
+                        Chấp nhận
+                      </Button>
+                    </DropdownMenuItem>
+                  );
+                }
+
+                if (notification.type === "new-message") {
+                  return (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={cn(
+                        "flex items-start gap-2 p-2 cursor-pointer",
+                        !notification.read && "bg-green-50/50"
+                      )}
+                      onClick={() => {
+                        setNotifications((prev) =>
+                          prev.map((n) =>
+                            n.id === notification.id ? { ...n, read: true } : n
+                          )
+                        );
+                      }}
+                    >
+                      <Avatar className="w-9 h-9 mt-1 rounded-full overflow-hidden">
+                        <AvatarImage
+                          src={notification.sender.avatar || "/images/user-placeholder.svg"}
+                          alt={notification.sender.username}
+                        />
+                        <AvatarFallback>
+                          {notification.sender.username.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-tight">
+                          <span className="font-semibold">
+                            {notification.sender.username}
+                          </span>{" "}
+                          đã gửi cho bạn tin nhắn
+                        </p>
+                        <span className="text-xs text-gray-500 line-clamp-1">
+                          {notification.content}
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                }
+
+                return null;
+              })
             )}
           </ScrollArea>
         </DropdownMenuContent>
