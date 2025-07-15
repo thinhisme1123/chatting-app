@@ -30,7 +30,10 @@ import { AddFriendModal } from "../components/chat/AddFriendModal";
 import { NotificationBar } from "../components/chat/NotficationBar";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-import { FriendRequestNotification } from "@/src/domain/entities/Notification";
+import {
+  AppNotification,
+  FriendRequestNotification,
+} from "@/src/domain/entities/Notification";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -51,9 +54,7 @@ export default function ChatPage() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
-  const [notification, setNotifications] = useState<
-    FriendRequestNotification[]
-  >([]);
+  const [notification, setNotifications] = useState<AppNotification[]>([]);
 
   // Typing indicator states
   const [typingUserName, setTypingUserName] = useState<string | null>(null);
@@ -228,6 +229,22 @@ export default function ChatPage() {
         isOwn: false,
       };
 
+      setNotifications((prev) => [
+        {
+          id: data._id || data.messageId,
+          sender: {
+            id: data.fromUserId,
+            username: data.senderName,
+            avatar: data.senderAvatar || "", 
+          },
+          content: data.content,
+          createdAt: data.timestamp || new Date().toISOString(),
+          read: false,
+          type: "new-message",
+        },
+        ...prev,
+      ]);
+
       if (
         selectedUser?.id === data.fromUserId ||
         selectedUser?.id === data.toUserId
@@ -271,7 +288,10 @@ export default function ChatPage() {
     const handleNewFriendRequest = (
       newNotification: FriendRequestNotification
     ) => {
-      setNotifications((prev) => [newNotification, ...prev]);
+      setNotifications((prev) => [
+        { ...newNotification, type: "friend-request" },
+        ...prev,
+      ]);
     };
 
     socket.on("friend-request-notification", handleNewFriendRequest);
@@ -460,6 +480,7 @@ export default function ChatPage() {
       fromUserId: user?.id,
       toUserId: selectedUser.id,
       senderName: user?.username,
+      senderAvatar: user?.avatar,
       message: newMessage,
     });
 
