@@ -57,6 +57,7 @@
     "react-resizable-panels": "^2.1.7",
     "react-router-dom": "^7.6.2",
     "recharts": "2.15.0",
+    "sass": "^1.89.2",
     "socket.io-client": "latest",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",

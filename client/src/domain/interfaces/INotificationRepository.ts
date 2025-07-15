@@ -1,5 +1,5 @@
-import { Notification } from "../entities/Notification";
+import { FriendRequestNotification } from "../entities/Notification";
 
 export interface INotificationRepository {
-  getNotifications(currentUserId: string): Promise<Notification[]>;
+  getAffFriendNotifications(currentUserId: string): Promise<FriendRequestNotification[]>;
 }

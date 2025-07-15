@@ -7,4 +7,5 @@ export interface IChatRepository {
   getLastMessage(user1Id: string, user2Id: string) : Promise<Message>
   sendMessage(conversationId: string, content: string): Promise<Message>
   createConversation(participantIds: string[], isGroup?: boolean, groupName?: string): Promise<Conversation>
+  getMessageHistory(userId: string, selectedUserId: string): Promise<Message[]>
 }

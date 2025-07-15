@@ -2,7 +2,7 @@
 import { IFriendRepository } from "@/src/domain/interfaces/IFriendRepository";
 
 export class FriendUseCases {
-  constructor(private friendRepository: IFriendRepository) {}
+  constructor(private readonly friendRepository: IFriendRepository) {}
 
   async searchUsers(query: string, currentUserId: string) {
     return await this.friendRepository.searchUsers(query, currentUserId);

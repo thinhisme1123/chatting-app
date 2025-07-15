@@ -1,5 +1,5 @@
 import { INotificationRepository } from "@/src/domain/interfaces/INotificationRepository";
-import { Notification } from "@/src/domain/entities/Notification";
+import { FriendRequestNotification } from "@/src/domain/entities/Notification";
 import axios, { AxiosInstance } from "axios";
 
 export class NotificationRepository implements INotificationRepository {
@@ -24,7 +24,7 @@ export class NotificationRepository implements INotificationRepository {
     });
   }
 
-  async getNotifications(currentUserId: string): Promise<Notification[]> {
+  async getAffFriendNotifications(currentUserId: string): Promise<FriendRequestNotification[]> {
     const response = await this.apiClient.post(
       `/friend/pending-requests`,
       {

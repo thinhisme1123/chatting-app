@@ -22,4 +22,8 @@ export class ChatUseCases {
   async createConversation(participantIds: string[], isGroup?: boolean, groupName?: string) {
     return await this.chatRepository.createConversation(participantIds, isGroup, groupName)
   }
+
+  async getHistoryMessages(userId: string, selectedUserId: string) {
+    return await this.chatRepository.getMessageHistory(userId, selectedUserId);
+  }
 }
