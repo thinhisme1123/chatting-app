@@ -17,14 +17,24 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "../../contexts/AuthContext";
 import { NotificationUseCases } from "@/src/application/usecases/NotificationUseCases.query";
 import { NotificationRepository } from "@/src/infrastructure/repositories/NotificationRepository";
-import { Notification } from "@/src/domain/entities/Notification";
+import { FriendRequestNotification } from "@/src/domain/entities/Notification";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
 import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
+import "../../../../styles/notification.scss"
 
-export const NotificationBar: React.FC = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+interface NotificationBarProps {
+  newNotfications: FriendRequestNotification[];
+}
+
+export const NotificationBar: React.FC<NotificationBarProps> = ({
+  newNotfications,
+}) => {
+  const [notifications, setNotifications] = useState<
+    FriendRequestNotification[]
+  >([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [triggerBell, setTriggerBell] = useState(false);
   const { user } = useAuth();
   const friendUseCases = new FriendUseCases(new FriendRepository());
 
@@ -33,18 +43,41 @@ export const NotificationBar: React.FC = () => {
   );
 
   useEffect(() => {
+    if (newNotfications) {
+      setNotifications(newNotfications);
+    }
+  }, [newNotfications]);
+
+  useEffect(() => {
     if (!user?.id) return;
+    console.log(123);
+
     const fetchNotifications = async () => {
       const data = await notificationUseCases.getUserNotifications(user.id);
       setNotifications(data);
     };
     fetchNotifications();
-  }, [user]);
+  }, [user, newNotfications]);
 
   useEffect(() => {
     const count = notifications.filter((n) => !n.read).length;
     setUnreadCount(count);
   }, [notifications]);
+
+  useEffect(() => {
+    if (unreadCount > 0) {
+      setTriggerBell(true);
+
+      const timeout = setTimeout(() => {
+        setTriggerBell(false);
+      }, 1000);
+
+      const audio = new Audio("/sound/notification.mp3");
+      audio.play().catch(() => {});
+
+      return () => clearTimeout(timeout);
+    }
+  }, [unreadCount]);
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -75,8 +108,13 @@ export const NotificationBar: React.FC = () => {
     <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative me-2">
-            <Bell className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="relative me-2 focus:outline-none focus:ring-0">
+            <Bell
+              className={cn(
+                "h-5 w-5 transition-transform",
+                triggerBell && "animate-bell-ring"
+              )}
+            />
             {unreadCount > 0 && (
               <Badge
                 variant="destructive"

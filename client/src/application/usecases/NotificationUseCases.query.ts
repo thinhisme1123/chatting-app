@@ -1,9 +1,9 @@
 import { INotificationRepository } from "../../domain/interfaces/INotificationRepository";
 
 export class NotificationUseCases {
-  constructor(private repo: INotificationRepository) {}
+  constructor(private readonly repo: INotificationRepository) {}
 
   async getUserNotifications(currentUserId: string) {
-    return this.repo.getNotifications(currentUserId);
+    return this.repo.getAffFriendNotifications(currentUserId);
   }
 }

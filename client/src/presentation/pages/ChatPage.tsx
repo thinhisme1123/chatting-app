@@ -3,12 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AuthUseCases } from "@/src/application/usecases/AuthUseCases.query";
 import { ChatUseCases } from "@/src/application/usecases/ChatUseCases.query";
+import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
 import { Message } from "@/src/domain/entities/Message";
 import { User } from "@/src/domain/entities/User";
-import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
 import { ChatRepository } from "@/src/infrastructure/repositories/ChatRepository";
+import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import {
   ArrowLeft,
@@ -24,14 +24,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import { AddFriendModal } from "../components/chat/AddFriendModal";
+import { NotificationBar } from "../components/chat/NotficationBar";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-import { AddFriendModal } from "../components/chat/AddFriendModal";
-import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
-import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
-import { NotificationBar } from "../components/chat/Notfication";
+import { FriendRequestNotification } from "@/src/domain/entities/Notification";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -40,6 +39,7 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState("");
   const { user, logout } = useAuth();
   const [users, setUsers] = useState<User[] | null>([]);
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +51,9 @@ export default function ChatPage() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
+  const [notification, setNotifications] = useState<
+    FriendRequestNotification[]
+  >([]);
 
   // Typing indicator states
   const [typingUserName, setTypingUserName] = useState<string | null>(null);
@@ -107,6 +110,10 @@ export default function ChatPage() {
         setSocket(newSocket);
       });
 
+      newSocket.on("online-users", (userIds: string[]) => {
+        setOnlineUserIds(userIds);
+      });
+
       newSocket.on("connect_error", (error) => {
         console.error("Socket connection error:", error);
         setError("Failed to connect to chat server");
@@ -114,12 +121,22 @@ export default function ChatPage() {
 
       return () => {
         newSocket.disconnect();
+        newSocket.off("online-users");
       };
     } catch (error) {
       console.error("Socket initialization error:", error);
       setError("Failed to initialize chat connection");
     }
   }, [isClient]);
+
+  // handle user online or not
+  const selectedUserWithStatus = useMemo(() => {
+    if (!selectedUser) return null;
+    return {
+      ...selectedUser,
+      isOnline: onlineUserIds.includes(selectedUser.id),
+    };
+  }, [selectedUser, onlineUserIds]);
 
   // Initial setup
   useEffect(() => {
@@ -251,10 +268,18 @@ export default function ChatPage() {
       }
     };
 
+    const handleNewFriendRequest = (
+      newNotification: FriendRequestNotification
+    ) => {
+      setNotifications((prev) => [newNotification, ...prev]);
+    };
+
+    socket.on("friend-request-notification", handleNewFriendRequest);
     socket.on("receive-message", handleReceiveMessage);
 
     return () => {
       socket.off("receive-message", handleReceiveMessage);
+      socket.off("friend-request-notification", handleNewFriendRequest);
     };
   }, [user, selectedUser, socket]);
 
@@ -262,17 +287,13 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedUser || !user || !socket) return;
 
+    //fetching message history
     const fetchHistory = async () => {
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL;
-        if (!API_URL) return;
-
-        const res = await fetch(
-          `${API_URL}/messages/history/${user.id}/${selectedUser.id}`
+        const data = await chatUseCases.getHistoryMessages(
+          user.id,
+          selectedUser.id
         );
-        if (!res.ok) throw new Error("Failed to fetch chat history");
-
-        const data = await res.json();
         setMessages(
           data.map((msg: Message) => ({
             ...msg,
@@ -367,6 +388,11 @@ export default function ChatPage() {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
+  };
+
+  // handle add friend click (handle notification)
+  const handleAddFriendClick = (friendAddId: string) => {
+    console.log(friendAddId);
   };
 
   // Handle input change with typing indicator
@@ -512,6 +538,8 @@ export default function ChatPage() {
               const hasNew = newMessageUserIds.includes(userItem.id);
               const lastMsg = lastMessages[userItem.id] || "No message yet.";
 
+              const isOnline = onlineUserIds.includes(userItem.id);
+
               return (
                 <div
                   role="button"
@@ -532,9 +560,11 @@ export default function ChatPage() {
                         src={userItem?.avatar || "/images/user-placeholder.jpg"}
                       />
                     </Avatar>
-                    {userItem.isOnline && (
-                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                    )}
+                    <div
+                      className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
+                        isOnline ? "bg-green-500" : "bg-gray-300"
+                      }`}
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -594,7 +624,7 @@ export default function ChatPage() {
           ${!selectedUser && isMobile ? "hidden" : "flex"}
         `}
       >
-        <NotificationBar />
+        <NotificationBar newNotfications={notification} />
         {selectedUser ? (
           <>
             {/* Chat Header */}
@@ -614,14 +644,18 @@ export default function ChatPage() {
                     src={selectedUser?.avatar || "/images/user-placeholder.jpg"}
                   />
                 </Avatar>
-                <div>
-                  <h3 className="font-semibold">{selectedUser?.username}</h3>
-                  <p className="text-sm text-gray-600">
-                    {selectedUser.isOnline
-                      ? "Đang hoạt động"
-                      : "Không hoạt động"}
-                  </p>
-                </div>
+                {selectedUserWithStatus && (
+                  <div>
+                    <h3 className="font-semibold">
+                      {selectedUserWithStatus.username}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {selectedUserWithStatus.isOnline
+                        ? "Đang hoạt động"
+                        : "Không hoạt động"}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2">
@@ -730,7 +764,7 @@ export default function ChatPage() {
       <AddFriendModal
         isOpen={isAddFriendModalOpen}
         onOpenChange={setIsAddFriendModalOpen}
-        onUserSelect={handleUserSelect}
+        onAddFriendClick={handleAddFriendClick}
         friendUseCases={friendUseCases}
         currentUserId={user?.id}
       />

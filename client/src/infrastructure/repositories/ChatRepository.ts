@@ -36,6 +36,16 @@ export class ChatRepository implements IChatRepository {
     return response.data;
   }
 
+  async getMessageHistory(
+    userId: string,
+    selectedUserId: string
+  ): Promise<Message[]> {
+    const response = await this.apiClient.get(
+      `/messages/history/${userId}/${selectedUserId}`
+    );
+    return response.data;
+  }
+
   async getLastMessage(user1Id: string, user2Id: string): Promise<Message> {
     const response = await this.apiClient.get("/messages/last", {
       params: { user1: user1Id, user2: user2Id },

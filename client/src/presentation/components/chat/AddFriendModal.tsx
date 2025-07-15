@@ -20,7 +20,7 @@ import type { User } from "../../../domain/entities/User";
 interface AddFriendModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onUserSelect: (user: User) => void;
+  onAddFriendClick: (friendAddId: string) => void;
   friendUseCases: FriendUseCases;
   currentUserId?: string;
 }
@@ -28,7 +28,7 @@ interface AddFriendModalProps {
 export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   isOpen,
   onOpenChange,
-  onUserSelect,
+  onAddFriendClick,
   friendUseCases,
   currentUserId,
 }) => {
@@ -92,7 +92,8 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
     try {
       await friendUseCases.sendFriendRequest(currentUserId!, targetUserId);
       setSentRequestIds((prev) => [...prev, targetUserId]);
-
+      onAddFriendClick(targetUserId);
+      
       toast.success("Gửi lời mời kết bạn thành công!", {
         duration: 4000,
         style: {
