@@ -1,27 +1,14 @@
 // infrastructure/repositories/FriendRepository.ts
-import { IFriendRepository } from "@/src/domain/interfaces/IFriendRepository";
 import { User } from "@/src/domain/entities/User";
-import axios, { AxiosInstance } from "axios";
+import { IFriendRepository } from "@/src/domain/interfaces/IFriendRepository";
+import { AxiosInstance } from "axios";
+import { ApiClient } from "../api/ApiClient";
 
 export class FriendRepository implements IFriendRepository {
   private readonly apiClient: AxiosInstance;
 
   constructor() {
-    this.apiClient = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
-      timeout: 10000,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    this.apiClient.interceptors.request.use((config) => {
-      const token = localStorage.getItem("auth_token");
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
+    this.apiClient = new ApiClient().instance;
   }
 
   // POST: get users by keyword

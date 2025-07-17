@@ -1,38 +1,24 @@
+import { type AxiosInstance } from "axios";
+import type { User } from "../../domain/entities/User";
 import type {
+  AuthResponse,
   IAuthRepository,
   LoginRequest,
   RegisterRequest,
-  AuthResponse,
 } from "../../domain/interfaces/IAuthRepository";
-import type { User } from "../../domain/entities/User";
-import axios, { type AxiosInstance } from "axios";
+import { ApiClient } from "../api/ApiClient";
 
 export class AuthRepository implements IAuthRepository {
   private readonly apiClient: AxiosInstance;
 
   constructor() {
-    this.apiClient = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
-      timeout: 10000,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    // Add auth token to requests
-    this.apiClient.interceptors.request.use((config) => {
-      const token = localStorage.getItem("auth_token");
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
+    this.apiClient = new ApiClient().instance;
   }
 
   async login(request: LoginRequest): Promise<AuthResponse> {
     try {
       const response = await this.apiClient.post("/auth/login", request, {
-        withCredentials: true, // 🔥 Rất quan trọng để gửi cookie qua
+        withCredentials: true, // 
       });
 
       if (response.data.token) {

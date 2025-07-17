@@ -1,8 +1,8 @@
 "use client";
 
-import { AuthUseCases } from "@/src/application/usecases/AuthUseCases.query";
+import { AuthUseCases } from "@/src/application/usecases/auth-use-cases.query";
 import { User as UserModel } from "@/src/domain/entities/User";
-import { AuthRepository } from "@/src/infrastructure/repositories/AuthRepository";
+import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
 import {
   Calendar,
   Camera,

@@ -1,29 +1,16 @@
-import type { IChatRepository } from "../../domain/interfaces/IChatRepository";
+import { type AxiosInstance } from "axios";
 import type { Conversation } from "../../domain/entities/Conversation";
 import type { Message } from "../../domain/entities/Message";
-import axios, { type AxiosInstance } from "axios";
+import type { IChatRepository } from "../../domain/interfaces/IChatRepository";
+import { ApiClient } from "../api/ApiClient";
 
 export class ChatRepository implements IChatRepository {
   private readonly apiClient: AxiosInstance;
 
   constructor() {
-    this.apiClient = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
-      timeout: 10000,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    // Add auth token to requests
-    this.apiClient.interceptors.request.use((config) => {
-      const token = localStorage.getItem("auth_token");
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
+    this.apiClient = new ApiClient().instance;
   }
+
   async getConversations(): Promise<Conversation[]> {
     const response = await this.apiClient.get("/conversations");
     return response.data;

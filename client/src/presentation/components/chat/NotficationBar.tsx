@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Bell, CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,24 +12,29 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { useAuth } from "../../contexts/AuthContext";
-import { NotificationUseCases } from "@/src/application/usecases/NotificationUseCases.query";
-import { NotificationRepository } from "@/src/infrastructure/repositories/NotificationRepository";
+import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
+import { NotificationUseCases } from "@/src/application/usecases/notifcation-use-cases.query";
 import {
-  AppNotification,
-  FriendRequestNotification,
+  AppNotification
 } from "@/src/domain/entities/Notification";
+import { User } from "@/src/domain/entities/User";
+import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
+import { NotificationRepository } from "@/src/infrastructure/repositories/notfication.repository";
+import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
-import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
-import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
+import { Bell, CheckCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import "../../../../styles/notification.scss";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface NotificationBarProps {
   newNotfications: AppNotification[];
+  onSelectUser: (user: User) => void;
 }
 
 export const NotificationBar: React.FC<NotificationBarProps> = ({
   newNotfications,
+  onSelectUser
 }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -79,6 +82,8 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
   useEffect(() => {
     const count = notifications.filter((n) => !n.read).length;
     setUnreadCount(count);
+    playNotificationSound()
+
   }, [notifications]);
 
   useEffect(() => {
@@ -89,9 +94,8 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
         setTriggerBell(false);
       }, 1000);
 
-      const audio = new Audio("/sound/notification.mp3");
-      audio.play().catch(() => {});
-
+    
+      
       return () => clearTimeout(timeout);
     }
   }, [unreadCount]);
@@ -241,6 +245,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                             n.id === notification.id ? { ...n, read: true } : n
                           )
                         );
+                        onSelectUser(notification.sender as User);
                       }}
                     >
                       <Avatar className="w-9 h-9 mt-1 rounded-full overflow-hidden">
