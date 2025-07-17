@@ -11,7 +11,6 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Chat Application",
   description: "Connect with friends and family through real-time messaging",
-  generator: "v0.dev",
   icons: {
     icon: "/chat_messages.ico",
   },

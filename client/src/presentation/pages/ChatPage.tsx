@@ -3,12 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ChatUseCases } from "@/src/application/usecases/ChatUseCases.query";
-import { FriendUseCases } from "@/src/application/usecases/FriendUseCases.query";
+import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
+import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { Message } from "@/src/domain/entities/Message";
+import {
+  AppNotification,
+  FriendRequestNotification,
+} from "@/src/domain/entities/Notification";
 import { User } from "@/src/domain/entities/User";
-import { ChatRepository } from "@/src/infrastructure/repositories/ChatRepository";
-import { FriendRepository } from "@/src/infrastructure/repositories/FriendRepository";
+import { ChatRepository } from "@/src/infrastructure/repositories/chat.repository";
+import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import {
   ArrowLeft,
@@ -19,6 +23,7 @@ import {
   Search,
   Send,
   Settings,
+  UserPlus,
   Users,
   Video,
 } from "lucide-react";
@@ -26,14 +31,20 @@ import Link from "next/link";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { AddFriendModal } from "../components/chat/AddFriendModal";
+import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { NotificationBar } from "../components/chat/NotficationBar";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  AppNotification,
-  FriendRequestNotification,
-} from "@/src/domain/entities/Notification";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@radix-ui/react-dropdown-menu";
+import { CreateGroupModal } from "../components/modals/CreateGroupModal";
+import router from "next/router";
+import { truncate } from "@/src/utils/truncateText";
+import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfo";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -41,7 +52,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const { user, logout } = useAuth();
-  const [users, setUsers] = useState<User[] | null>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +74,20 @@ export default function ChatPage() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [newMessageUserIds, setNewMessageUserIds] = useState<string[]>([]);
-  const [lastMessages, setLastMessages] = useState<Record<string, string>>({});
+  const [lastMessages, setLastMessages] = useState<
+    Record<string, LastMessageInfo>
+  >({});
+
+  const [showCreateModal, setIsCreateGroupModalOpen] = useState(false);
+  const [friends, setFriends] = useState<User[]>([]);
+
+  const displayedUsers = (searchQuery.trim() ? filteredUsers : users)
+    .slice()
+    .sort((a, b) => {
+      const aTime = new Date(lastMessages[a.id]?.timestamp || 0).getTime();
+      const bTime = new Date(lastMessages[b.id]?.timestamp || 0).getTime();
+      return bTime - aTime;
+    });
 
   // Check if we're in browser environment
   const [isClient, setIsClient] = useState(false);
@@ -84,10 +108,15 @@ export default function ChatPage() {
     if (!user?.id) return;
     try {
       const message = await chatUseCases.getLastMessage(user.id, friendId);
-      setLastMessages((prev) => ({
-        ...prev,
-        [friendId]: message?.content || "No messages yet.",
-      }));
+      if (message) {
+        setLastMessages((prev) => ({
+          ...prev,
+          [friendId]: {
+            content: message.content || "No messages yet.",
+            timestamp: message.timestamp.toString(),
+          },
+        }));
+      }
     } catch (err) {
       console.error("Error updating last message:", err);
     }
@@ -149,6 +178,7 @@ export default function ChatPage() {
 
         const data = await friendUseCases.getConfirmedFriends(user.id);
         setUsers(data);
+        setFriends(data);
         if (Array.isArray(data) && data.length > 0 && !selectedUser) {
           clearNewMessageForUser(data[0].id);
         }
@@ -196,7 +226,10 @@ export default function ChatPage() {
     const fetchAllLastMessages = async () => {
       if (!users || !user?.id) return;
 
-      const newMessagesMap: Record<string, string> = {};
+      const newMessagesMap: Record<
+        string,
+        { content: string; timestamp: string }
+      > = {};
 
       for (const userItem of users) {
         try {
@@ -204,10 +237,19 @@ export default function ChatPage() {
             user.id,
             userItem.id
           );
-          newMessagesMap[userItem.id] = message?.content || "No messages yet.";
+
+          newMessagesMap[userItem.id] = {
+            content: message?.content || "No messages yet.",
+            timestamp: message?.timestamp
+              ? new Date(message.timestamp).toISOString()
+              : new Date().toISOString(), // fallback to now
+          };
         } catch (err) {
           console.error(`Error fetching last message for ${userItem.id}`, err);
-          newMessagesMap[userItem.id] = "Error loading message";
+          newMessagesMap[userItem.id] = {
+            content: "Error loading message",
+            timestamp: new Date().toISOString(),
+          };
         }
       }
 
@@ -221,21 +263,24 @@ export default function ChatPage() {
   useEffect(() => {
     if (!user || !socket) return;
 
+    // Gửi userId để register socket room
     socket.emit("register-user", user.id);
 
+    // Nhận tin nhắn realtime
     const handleReceiveMessage = (data: any) => {
       const message = {
         ...data,
         isOwn: false,
       };
 
+      // Thêm vào danh sách notification
       setNotifications((prev) => [
         {
           id: data._id || data.messageId,
           sender: {
             id: data.fromUserId,
             username: data.senderName,
-            avatar: data.senderAvatar || "", 
+            avatar: data.senderAvatar || "",
           },
           content: data.content,
           createdAt: data.timestamp || new Date().toISOString(),
@@ -245,46 +290,47 @@ export default function ChatPage() {
         ...prev,
       ]);
 
-      if (
+      const isUserInConversation =
         selectedUser?.id === data.fromUserId ||
-        selectedUser?.id === data.toUserId
-      ) {
-        setMessages((prev) => [...prev, message]);
+        selectedUser?.id === data.toUserId;
 
+      if (isUserInConversation) {
+        // Nếu đang mở đoạn chat với user gửi → show message luôn
+        setMessages((prev) => [...prev, message]);
         updateLastMessageForUser(data.fromUserId);
       } else {
+        // Nếu KHÔNG mở đoạn chat đó → cập nhật thông báo
         setUserHasNewMessage(data.fromUserId);
         updateLastMessageForUser(data.fromUserId);
-        // Safe document title update
-        if (typeof document !== "undefined") {
-          document.title = `${data.senderName} đã nhắn tin cho bạn`;
-        }
 
-        // Safe notification with error handling
+        document.title = `${data.senderName} đã nhắn tin cho bạn`;
+        // Nếu đang ở tab khác (không active) → hiện browser notification
         if (
           typeof window !== "undefined" &&
           "Notification" in window &&
-          Notification.permission === "granted"
+          Notification.permission === "granted" &&
+          document.visibilityState !== "visible"
         ) {
           try {
-            new Notification(`${data.senderName} đã đề cập đến bạn`, {
+            new Notification(`${data.senderName} đã nhắn tin cho bạn`, {
               body: message.content,
               icon: "/images/chat-icon-2.png",
             });
           } catch (error) {
-            console.error("Notification error:", error);
+            console.error("📢 Notification error:", error);
           }
         }
 
-        // Safe sound play
+        // Luôn luôn phát âm thanh nếu có message mới ngoài đoạn chat đang mở
         try {
           playNotificationSound();
         } catch (error) {
-          console.error("Sound play error:", error);
+          console.error("🔇 Sound error:", error);
         }
       }
     };
 
+    // Nhận lời mời kết bạn realtime
     const handleNewFriendRequest = (
       newNotification: FriendRequestNotification
     ) => {
@@ -294,8 +340,9 @@ export default function ChatPage() {
       ]);
     };
 
-    socket.on("friend-request-notification", handleNewFriendRequest);
+    // Lắng nghe các sự kiện từ server
     socket.on("receive-message", handleReceiveMessage);
+    socket.on("friend-request-notification", handleNewFriendRequest);
 
     return () => {
       socket.off("receive-message", handleReceiveMessage);
@@ -526,20 +573,47 @@ export default function ChatPage() {
       {/* Left Sidebar - User List */}
       <div
         className={`
-            w-90 h-full md:w-90 bg-white border-r flex flex-col
+            min-w-80 h-full bg-white border-r flex flex-col
             ${selectedUser && isMobile ? "hidden" : "block"}
           `}
       >
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Tin nhắn</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsAddFriendModalOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hover:bg-gray-100 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-56 z-10 bg-white shadow-lg rounded-md border border-gray-200"
+              >
+                <DropdownMenuItem
+                  onClick={() => {
+                    setTimeout(() => setIsAddFriendModalOpen(true), 0);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer rounded-md"
+                >
+                  <UserPlus className="h-4 w-4 text-blue-600" />
+                  <span>Gửi lời mời kết bạn</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setTimeout(() => setIsCreateGroupModalOpen(true), 0);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer rounded-md"
+                >
+                  <Users className="h-4 w-4 text-green-600" />
+                  <span>Tạo nhóm chat</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className="relative">
@@ -555,10 +629,11 @@ export default function ChatPage() {
 
         <ScrollArea className="flex-1">
           <div className="p-2">
-            {(searchQuery.trim() ? filteredUsers : users)?.map((userItem) => {
+            {displayedUsers.map((userItem) => {
               const hasNew = newMessageUserIds.includes(userItem.id);
-              const lastMsg = lastMessages[userItem.id] || "No message yet.";
-
+              const rawMsg =
+                lastMessages[userItem.id]?.content || "No message yet.";
+              const lastMsg = truncate(rawMsg);
               const isOnline = onlineUserIds.includes(userItem.id);
 
               return (
@@ -645,7 +720,10 @@ export default function ChatPage() {
           ${!selectedUser && isMobile ? "hidden" : "flex"}
         `}
       >
-        <NotificationBar newNotfications={notification} />
+        <NotificationBar
+          newNotfications={notification}
+          onSelectUser={handleUserSelect}
+        />
         {selectedUser ? (
           <>
             {/* Chat Header */}
@@ -725,7 +803,9 @@ export default function ChatPage() {
                             : "bg-gray-100 text-gray-900"
                         }`}
                       >
-                        <p className="text-sm">{message.content}</p>
+                        <p className="text-sm break-words whitespace-pre-wrap">
+                          {message.content}
+                        </p>
                       </div>
                       <span className="text-xs text-gray-500 mt-1">
                         {new Date(message.timestamp).toLocaleTimeString(
@@ -788,6 +868,13 @@ export default function ChatPage() {
         onAddFriendClick={handleAddFriendClick}
         friendUseCases={friendUseCases}
         currentUserId={user?.id}
+      />
+      <CreateGroupModal
+        isOpen={showCreateModal}
+        onClose={() => setIsCreateGroupModalOpen(false)}
+        friends={friends}
+        socket={socket}
+        onGroupCreated={(roomId) => router.push(`/chat/${roomId}`)}
       />
     </div>
   );
