@@ -30,11 +30,13 @@ import { useAuth } from "../../contexts/AuthContext";
 interface NotificationBarProps {
   newNotfications: AppNotification[];
   onSelectUser: (user: User) => void;
+  onFriendAccepted: () => void;
 }
 
 export const NotificationBar: React.FC<NotificationBarProps> = ({
   newNotfications,
-  onSelectUser
+  onSelectUser,
+  onFriendAccepted
 }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -118,7 +120,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
   const handleAcceptFriendRequest = async (requestId: string) => {
     try {
       await friendUseCases.respondToRequest(requestId, "accept");
-
+      onFriendAccepted()
       setNotifications((prev) => prev.filter((n) => n.id !== requestId));
     } catch (error) {
       console.error("❌ Accept friend request failed:", error);
