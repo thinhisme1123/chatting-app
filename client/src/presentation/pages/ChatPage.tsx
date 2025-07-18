@@ -29,10 +29,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { AddFriendModal } from "../components/modals/AddFriendModal";
-import { NotificationBar } from "../components/chat/NotficationBar";
+import { NotificationBar } from "../components/chat/NotificationBar";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -136,7 +136,6 @@ export default function ChatPage() {
       const newSocket = io(API_URL);
 
       newSocket.on("connect", () => {
-        console.log("Socket connected");
         setSocket(newSocket);
       });
 
@@ -168,28 +167,29 @@ export default function ChatPage() {
     };
   }, [selectedUser, onlineUserIds]);
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      if (!user?.id) return;
+
+      const data = await friendUseCases.getConfirmedFriends(user.id);
+      setUsers(data);
+      setFriends(data);
+
+      if (Array.isArray(data) && data.length > 0 && !selectedUser) {
+        clearNewMessageForUser(data[0].id);
+      }
+
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      setError("Failed to load users");
+      setIsLoading(false);
+    }
+  }, [user?.id, selectedUser]);
+
   // Initial setup
   useEffect(() => {
     if (!isClient) return;
-
-    const fetchUsers = async () => {
-      try {
-        if (!user?.id) return;
-
-        const data = await friendUseCases.getConfirmedFriends(user.id);
-        setUsers(data);
-        setFriends(data);
-        if (Array.isArray(data) && data.length > 0 && !selectedUser) {
-          clearNewMessageForUser(data[0].id);
-        }
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-        setError("Failed to load users");
-        setIsLoading(false);
-      }
-    };
-
     // Request notification permission with error handling
     const requestNotificationPermission = async () => {
       if ("Notification" in window && Notification.permission !== "granted") {
@@ -219,7 +219,7 @@ export default function ChatPage() {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [isClient, user]);
+  }, [isClient, fetchUsers]);
 
   // Fetch last messages
   useEffect(() => {
@@ -340,13 +340,23 @@ export default function ChatPage() {
       ]);
     };
 
+    // hiển thị bạn mới vừa kết bạn real time
+    const handleFriendAccepted = (data: { newFriend: User }) => {
+      setUsers((prev) => [data.newFriend, ...prev]);
+      setFriends((prev) => [data.newFriend, ...prev]);
+      updateLastMessageForUser(data.newFriend.id);
+      fetchUsers()
+    };
+
     // Lắng nghe các sự kiện từ server
     socket.on("receive-message", handleReceiveMessage);
     socket.on("friend-request-notification", handleNewFriendRequest);
+    socket.on("friend-request-accepted", handleFriendAccepted);
 
     return () => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("friend-request-notification", handleNewFriendRequest);
+      socket.off("friend-request-accepted", handleFriendAccepted);
     };
   }, [user, selectedUser, socket]);
 
@@ -455,11 +465,6 @@ export default function ChatPage() {
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-  };
-
-  // handle add friend click (handle notification)
-  const handleAddFriendClick = (friendAddId: string) => {
-    console.log(friendAddId);
   };
 
   // Handle input change with typing indicator
@@ -723,6 +728,7 @@ export default function ChatPage() {
         <NotificationBar
           newNotfications={notification}
           onSelectUser={handleUserSelect}
+          onFriendAccepted={fetchUsers}
         />
         {selectedUser ? (
           <>
@@ -865,7 +871,6 @@ export default function ChatPage() {
       <AddFriendModal
         isOpen={isAddFriendModalOpen}
         onOpenChange={setIsAddFriendModalOpen}
-        onAddFriendClick={handleAddFriendClick}
         friendUseCases={friendUseCases}
         currentUserId={user?.id}
       />

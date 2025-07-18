@@ -35,7 +35,6 @@ import { cn } from "@/lib/utils";
 interface AddFriendModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddFriendClick: (friendAddId: string) => void;
   friendUseCases: FriendUseCases;
   currentUserId?: string;
 }
@@ -52,7 +51,6 @@ const friendThemes = [
 export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   isOpen,
   onOpenChange,
-  onAddFriendClick,
   friendUseCases,
   currentUserId,
 }) => {
@@ -130,7 +128,6 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
     try {
       await friendUseCases.sendFriendRequest(currentUserId!, targetUserId);
       setSentRequestIds((prev) => [...prev, targetUserId]);
-      onAddFriendClick(targetUserId);
 
       toast.success("Gửi lời mời kết bạn thành công!", {
         duration: 4000,
