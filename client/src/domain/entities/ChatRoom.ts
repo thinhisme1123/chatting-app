@@ -3,5 +3,9 @@ export interface ChatRoom {
   name: string;
   ownerId: string;
   avatar?: string;
-  members: { id: string; username: string; avatar?: string }[];
+  members: {
+    id: string;
+    username: string;
+    avatar?: string;
+  }[];
 }

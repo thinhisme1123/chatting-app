@@ -3,17 +3,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.query";
 import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
+import { ChatRoom } from "@/src/domain/entities/ChatRoom";
+import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfo";
 import { Message } from "@/src/domain/entities/Message";
 import {
   AppNotification,
   FriendRequestNotification,
 } from "@/src/domain/entities/Notification";
 import { User } from "@/src/domain/entities/User";
+import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository";
 import { ChatRepository } from "@/src/infrastructure/repositories/chat.repository";
 import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
+import { truncate } from "@/src/utils/truncateText";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@radix-ui/react-dropdown-menu";
 import {
   ArrowLeft,
   LogOut,
@@ -31,24 +42,19 @@ import Link from "next/link";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { NotificationBar } from "../components/chat/NotificationBar";
+import { AddFriendModal } from "../components/modals/AddFriendModal";
+import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@radix-ui/react-dropdown-menu";
-import { CreateGroupModal } from "../components/modals/CreateGroupModal";
-import router from "next/router";
-import { truncate } from "@/src/utils/truncateText";
-import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfo";
+
+type ChatTarget = User | ChatRoom;
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | ChatRoom | null>(
+    null
+  );
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const { user, logout } = useAuth();
@@ -62,6 +68,7 @@ export default function ChatPage() {
 
   const chatUseCases = new ChatUseCases(new ChatRepository());
   const friendUseCases = new FriendUseCases(new FriendRepository());
+  const chatRoomUseCases = new ChatRoomUseCase(new ChatRoomRepository());
 
   const [isMobile, setIsMobile] = useState(false);
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
@@ -80,14 +87,22 @@ export default function ChatPage() {
 
   const [showCreateModal, setIsCreateGroupModalOpen] = useState(false);
   const [friends, setFriends] = useState<User[]>([]);
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
 
-  const displayedUsers = (searchQuery.trim() ? filteredUsers : users)
-    .slice()
-    .sort((a, b) => {
-      const aTime = new Date(lastMessages[a.id]?.timestamp || 0).getTime();
-      const bTime = new Date(lastMessages[b.id]?.timestamp || 0).getTime();
-      return bTime - aTime;
-    });
+  const allChats = [...users, ...chatRooms];
+
+  const filteredChats = searchQuery.trim()
+    ? allChats.filter((item) => {
+        const name = "username" in item ? item.username : item.name;
+        return name.toLowerCase().includes(searchQuery.toLowerCase());
+      })
+    : allChats;
+
+  const displayedUsers = filteredChats.slice().sort((a, b) => {
+    const aTime = new Date(lastMessages[a.id]?.timestamp || 0).getTime();
+    const bTime = new Date(lastMessages[b.id]?.timestamp || 0).getTime();
+    return bTime - aTime;
+  });
 
   // Check if we're in browser environment
   const [isClient, setIsClient] = useState(false);
@@ -167,11 +182,14 @@ export default function ChatPage() {
     };
   }, [selectedUser, onlineUserIds]);
 
+  //fetch friends and group
   const fetchUsers = useCallback(async () => {
     try {
       if (!user?.id) return;
 
       const data = await friendUseCases.getConfirmedFriends(user.id);
+      const rooms = await chatRoomUseCases.getRoomsForUser(user.id);
+      setChatRooms(rooms);
       setUsers(data);
       setFriends(data);
 
@@ -261,19 +279,58 @@ export default function ChatPage() {
 
   // Socket event handlers
   useEffect(() => {
-    if (!user || !socket) return;
+    if (!user || !socket || !selectedUser) return;
 
     // Gửi userId để register socket room
     socket.emit("register-user", user.id);
 
     // Nhận tin nhắn realtime
     const handleReceiveMessage = (data: any) => {
+      const isOwn = data.fromUserId === user?.id;
+    
       const message = {
         ...data,
-        isOwn: false,
+        isOwn,
       };
+      console.log(message);
+      
 
-      // Thêm vào danh sách notification
+      const isGroupMessage = !!data.roomId;
+
+      // 👥 Tin nhắn nhóm
+      if (isGroupMessage) {
+        const isInCurrentGroup = selectedUser?.id === data.roomId;
+
+        if (isInCurrentGroup) {
+          setMessages((prev) => [...prev, message]);
+          updateLastMessageForUser(data.roomId);
+        } else {
+          setUserHasNewMessage(data.roomId);
+          updateLastMessageForUser(data.roomId);
+
+          try {
+            playNotificationSound();
+          } catch (err) {
+            console.error("🔇 Sound error:", err);
+          }
+
+          if (
+            typeof window !== "undefined" &&
+            "Notification" in window &&
+            Notification.permission === "granted" &&
+            document.visibilityState !== "visible"
+          ) {
+            new Notification(`Tin nhắn mới từ nhóm ${data.senderName}`, {
+              body: message.content,
+              icon: "/images/chat-icon-2.png",
+            });
+          }
+        }
+
+        return;
+      }
+
+      // 👤 Tin nhắn cá nhân
       setNotifications((prev) => [
         {
           id: data._id || data.messageId,
@@ -295,40 +352,39 @@ export default function ChatPage() {
         selectedUser?.id === data.toUserId;
 
       if (isUserInConversation) {
-        // Nếu đang mở đoạn chat với user gửi → show message luôn
         setMessages((prev) => [...prev, message]);
         updateLastMessageForUser(data.fromUserId);
       } else {
-        // Nếu KHÔNG mở đoạn chat đó → cập nhật thông báo
         setUserHasNewMessage(data.fromUserId);
         updateLastMessageForUser(data.fromUserId);
 
-        document.title = `${data.senderName} đã nhắn tin cho bạn`;
-        // Nếu đang ở tab khác (không active) → hiện browser notification
+        try {
+          playNotificationSound();
+        } catch (error) {
+          console.error("🔇 Sound error:", error);
+        }
+
         if (
           typeof window !== "undefined" &&
           "Notification" in window &&
           Notification.permission === "granted" &&
           document.visibilityState !== "visible"
         ) {
-          try {
-            new Notification(`${data.senderName} đã nhắn tin cho bạn`, {
-              body: message.content,
-              icon: "/images/chat-icon-2.png",
-            });
-          } catch (error) {
-            console.error("📢 Notification error:", error);
-          }
-        }
-
-        // Luôn luôn phát âm thanh nếu có message mới ngoài đoạn chat đang mở
-        try {
-          playNotificationSound();
-        } catch (error) {
-          console.error("🔇 Sound error:", error);
+          new Notification(`${data.senderName} đã nhắn tin cho bạn`, {
+            body: message.content,
+            icon: "/images/chat-icon-2.png",
+          });
         }
       }
     };
+
+    // Kiểm tra xem đây có phải là nhóm không
+    const isGroup = "members" in selectedUser;
+
+    if (isGroup && selectedUser) {
+      socket.emit("join-room", { roomId: selectedUser.id });
+      console.log("Joined room", selectedUser.id);
+    }
 
     // Nhận lời mời kết bạn realtime
     const handleNewFriendRequest = (
@@ -345,18 +401,25 @@ export default function ChatPage() {
       setUsers((prev) => [data.newFriend, ...prev]);
       setFriends((prev) => [data.newFriend, ...prev]);
       updateLastMessageForUser(data.newFriend.id);
-      fetchUsers()
+      fetchUsers();
+    };
+
+    // hàm xử lí khi có group mới được tạo
+    const handleGroupCreated = (data: any) => {
+      console.log(data);
     };
 
     // Lắng nghe các sự kiện từ server
     socket.on("receive-message", handleReceiveMessage);
     socket.on("friend-request-notification", handleNewFriendRequest);
     socket.on("friend-request-accepted", handleFriendAccepted);
+    socket.on("new-group-notification", handleGroupCreated);
 
     return () => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("friend-request-notification", handleNewFriendRequest);
       socket.off("friend-request-accepted", handleFriendAccepted);
+      socket.off("new-group-notification", handleGroupCreated);
     };
   }, [user, selectedUser, socket]);
 
@@ -383,7 +446,11 @@ export default function ChatPage() {
     };
 
     if (typeof document !== "undefined") {
-      document.title = selectedUser.username;
+      if ("username" in selectedUser) {
+        document.title = selectedUser.username;
+      } else {
+        document.title = selectedUser.name;
+      }
     }
 
     fetchHistory();
@@ -457,8 +524,18 @@ export default function ChatPage() {
   }, [searchQuery]);
 
   // Handle user selection
-  const handleUserSelect = (selectedUserData: User) => {
-    setSelectedUser(selectedUserData);
+  const handleUserSelect = (selected: User) => {
+    setSelectedUser(selected);
+    setMessages([]);
+    setUsersTyping({});
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+  };
+
+  const handleGroupSelect = (group: ChatRoom) => {
+    setSelectedUser(group);
     setMessages([]);
     setUsersTyping({});
     setIsTyping(false);
@@ -509,41 +586,58 @@ export default function ChatPage() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedUser || !socket) return;
+    if (!newMessage.trim() || !selectedUser || !socket || !user) return;
+
+    const isGroup = "members" in selectedUser;
 
     const message = {
       id: Date.now().toString(),
-      senderId: user?.id,
-      senderName: user?.username || "Bạn",
+      senderId: user.id,
+      senderName: user.username,
       content: newMessage,
       timestamp: new Date(),
       isOwn: true,
     };
 
+    // Hiển thị tin nhắn ngay lập tức ở FE
     setMessages((prev) => [...prev, message]);
+
+    // Scroll to bottom
     setTimeout(() => {
-      const el = document.querySelector("#chat-end");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth" });
-      }
+      document
+        .querySelector("#chat-end")
+        ?.scrollIntoView({ behavior: "smooth" });
     }, 50);
 
-    socket.emit("send-message", {
-      fromUserId: user?.id,
-      toUserId: selectedUser.id,
-      senderName: user?.username,
-      senderAvatar: user?.avatar,
-      message: newMessage,
-    });
+    if (isGroup) {
+      // 👥 Gửi tin nhắn group
 
-    setIsTyping(false);
-    socket.emit("stop-typing", {
-      userId: user?.id,
-      toUserId: selectedUser.id,
-    });
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
+      socket.emit("send-group-message", {
+        roomId: selectedUser.id,
+        content: newMessage,
+        senderId: user.id,
+        senderName: user.username,
+        senderAvatar: user.avatar,
+        timestamp: new Date(),
+      });
+    } else {
+      // 👤 Gửi tin nhắn 1-1
+      socket.emit("send-message", {
+        fromUserId: user.id,
+        toUserId: selectedUser.id,
+        senderName: user.username,
+        senderAvatar: user.avatar,
+        message: newMessage,
+      });
+
+      // Emit stop typing
+      socket.emit("stop-typing", {
+        userId: user.id,
+        toUserId: selectedUser.id,
+      });
     }
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     setNewMessage("");
     updateLastMessageForUser(selectedUser.id);
@@ -631,52 +725,70 @@ export default function ChatPage() {
             />
           </div>
         </div>
-
+        {/* Friend and Room rendering */}
         <ScrollArea className="flex-1">
           <div className="p-2">
-            {displayedUsers.map((userItem) => {
-              const hasNew = newMessageUserIds.includes(userItem.id);
+            {displayedUsers.map((item) => {
+              const isGroup = "members" in item;
+              const displayName = isGroup ? item.name : item.username;
+              const avatar = item.avatar || "/images/user-placeholder.jpg";
+              const hasNew = newMessageUserIds.includes(item.id);
               const rawMsg =
-                lastMessages[userItem.id]?.content || "No message yet.";
+                lastMessages[item.id]?.content || "No message yet.";
               const lastMsg = truncate(rawMsg);
-              const isOnline = onlineUserIds.includes(userItem.id);
+              const isOnline = !isGroup && onlineUserIds.includes(item.id); // chỉ áp dụng với user
 
               return (
                 <div
                   role="button"
-                  key={userItem.id}
+                  key={item.id}
                   onClick={() => {
-                    handleUserSelect(userItem);
-                    clearNewMessageForUser(userItem.id);
+                    if ("members" in item) {
+                      handleGroupSelect(item);
+                    } else {
+                      handleUserSelect(item);
+                    }
+                    clearNewMessageForUser(item.id);
                   }}
                   className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedUser?.id === userItem.id
+                    selectedUser?.id === item.id
                       ? "bg-blue-50 border border-blue-200"
                       : "hover:bg-gray-50"
                   }`}
                 >
+                  {/* Avatar */}
                   <div className="relative">
                     <Avatar>
-                      <AvatarImage
-                        src={userItem?.avatar || "/images/user-placeholder.jpg"}
-                      />
+                      <AvatarImage src={avatar} />
                     </Avatar>
-                    <div
-                      className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-                        isOnline ? "bg-green-500" : "bg-gray-300"
-                      }`}
-                    />
+
+                    {/* Online dot nếu là user */}
+                    {!isGroup && (
+                      <div
+                        className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
+                          isOnline ? "bg-green-500" : "bg-gray-300"
+                        }`}
+                      />
+                    )}
                   </div>
 
+                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between">
                       <div>
-                        <h3 className="font-medium truncate">
-                          {userItem.username}
+                        <h3 className="font-medium truncate flex items-center gap-1">
+                          {displayName}
+                          {isGroup && (
+                            <span className="ml-1 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">
+                              Nhóm
+                            </span>
+                          )}
                         </h3>
                         <p className="text-xs text-gray-400">{lastMsg}</p>
                       </div>
-                      <div className="">
+
+                      {/* New message badge */}
+                      <div>
                         {hasNew && (
                           <Badge variant="destructive" className="text-xs">
                             Mới
@@ -752,12 +864,16 @@ export default function ChatPage() {
                 {selectedUserWithStatus && (
                   <div>
                     <h3 className="font-semibold">
-                      {selectedUserWithStatus.username}
+                      {"username" in selectedUserWithStatus
+                        ? selectedUserWithStatus.username
+                        : selectedUserWithStatus.name}
                     </h3>
                     <p className="text-sm text-gray-600">
-                      {selectedUserWithStatus.isOnline
-                        ? "Đang hoạt động"
-                        : "Không hoạt động"}
+                      {"username" in selectedUserWithStatus
+                        ? selectedUserWithStatus.isOnline
+                          ? "Đang hoạt động"
+                          : "Không hoạt động"
+                        : "Nhóm chat"}
                     </p>
                   </div>
                 )}
@@ -790,6 +906,7 @@ export default function ChatPage() {
                       <Avatar className="w-8 h-8">
                         <AvatarImage
                           src={
+                            message.senderAvatar ||
                             selectedUser?.avatar ||
                             "/images/user-placeholder.jpg"
                           }
@@ -843,7 +960,11 @@ export default function ChatPage() {
                 <Input
                   value={newMessage}
                   onChange={handleInputChange}
-                  placeholder={`Nhập tin nhắn gửi ${selectedUser?.username}...`}
+                  placeholder={`Nhập tin nhắn gửi ${
+                    "username" in selectedUser
+                      ? selectedUser.username
+                      : selectedUser?.name || ""
+                  }...`}
                   className="flex-1"
                 />
                 <Button type="submit" size="icon">
@@ -879,7 +1000,6 @@ export default function ChatPage() {
         onClose={() => setIsCreateGroupModalOpen(false)}
         friends={friends}
         socket={socket}
-        onGroupCreated={(roomId) => router.push(`/chat/${roomId}`)}
       />
     </div>
   );

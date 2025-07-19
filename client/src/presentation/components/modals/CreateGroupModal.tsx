@@ -1,100 +1,183 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Users, Camera, Loader2, Sparkles, Heart, Star, Zap, CheckCircle2, UserPlus, Palette, X } from "lucide-react"
-import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.query"
-import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository"
-import { useAuth } from "../../contexts/AuthContext"
-import { cn } from "@/lib/utils"
+import { useRef, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Users,
+  Camera,
+  Loader2,
+  Sparkles,
+  Heart,
+  Star,
+  Zap,
+  CheckCircle2,
+  UserPlus,
+  Palette,
+  X,
+} from "lucide-react";
+import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.query";
+import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository";
+import { useAuth } from "../../contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 interface Props {
-  isOpen: boolean
-  onClose: () => void
-  friends: { id: string; username: string; avatar?: string }[]
-  onGroupCreated?: (roomId: string) => void
-  socket: any
+  isOpen: boolean;
+  onClose: () => void;
+  friends: { id: string; username: string; avatar?: string }[];
+  socket: any;
 }
 
 // Predefined group colors and themes
 const groupThemes = [
-  { name: "Ocean", gradient: "from-blue-400 via-cyan-500 to-teal-600", icon: "🌊" },
-  { name: "Sunset", gradient: "from-orange-400 via-pink-500 to-purple-600", icon: "🌅" },
-  { name: "Forest", gradient: "from-green-400 via-emerald-500 to-teal-600", icon: "🌲" },
-  { name: "Galaxy", gradient: "from-purple-400 via-indigo-500 to-blue-600", icon: "🌌" },
-  { name: "Fire", gradient: "from-red-400 via-orange-500 to-yellow-600", icon: "🔥" },
-  { name: "Lavender", gradient: "from-purple-300 via-pink-400 to-rose-500", icon: "💜" },
-]
+  {
+    name: "Ocean",
+    gradient: "from-blue-400 via-cyan-500 to-teal-600",
+    icon: "🌊",
+  },
+  {
+    name: "Sunset",
+    gradient: "from-orange-400 via-pink-500 to-purple-600",
+    icon: "🌅",
+  },
+  {
+    name: "Forest",
+    gradient: "from-green-400 via-emerald-500 to-teal-600",
+    icon: "🌲",
+  },
+  {
+    name: "Galaxy",
+    gradient: "from-purple-400 via-indigo-500 to-blue-600",
+    icon: "🌌",
+  },
+  {
+    name: "Fire",
+    gradient: "from-red-400 via-orange-500 to-yellow-600",
+    icon: "🔥",
+  },
+  {
+    name: "Lavender",
+    gradient: "from-purple-300 via-pink-400 to-rose-500",
+    icon: "💜",
+  },
+];
 
-export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, socket }: Props) => {
-  const { user } = useAuth()
-  const [groupName, setGroupName] = useState("")
-  const [groupDescription, setGroupDescription] = useState("")
-  const [selected, setSelected] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [selectedTheme, setSelectedTheme] = useState(groupThemes[0])
-  const [step, setStep] = useState(1) // Multi-step form
-  const chatRoomUseCase = new ChatRoomUseCase(new ChatRoomRepository())
+export const CreateGroupModal = ({
+  isOpen,
+  onClose,
+  friends,
+  socket,
+}: Props) => {
+  const { user } = useAuth();
+  const [groupName, setGroupName] = useState("");
+  const [groupDescription, setGroupDescription] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState(groupThemes[0]);
+  const [step, setStep] = useState(1); // Multi-step form
+  const chatRoomUseCase = new ChatRoomUseCase(new ChatRoomRepository());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [groupAvatar, setGroupAvatar] = useState<File | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const toggleSelect = (id: string) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]))
-  }
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+    );
+  };
 
   const handleCreate = async () => {
-    if (!groupName || selected.length === 0 || !user?.id) return
-    setIsLoading(true)
-    try {
-      const room = await chatRoomUseCase.createRoom(groupName, user.id, selected)
+    if (!groupName || selected.length === 0 || !user?.id) return;
+    setIsLoading(true);
 
-      // Emit socket event cho các thành viên
+    try {
+      let imageUrl: string | undefined;
+
+      // Upload group avatar nếu có chọn ảnh
+      if (groupAvatar) {
+        const formData = new FormData();
+        formData.append("avatar", groupAvatar);
+        formData.append("userId", user.id); // hoặc không cần nếu backend không yêu cầu
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/user/upload-group-avatar`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!response.ok) throw new Error("Upload group avatar failed");
+        const data = await response.json();
+        imageUrl = data.imageUrl;
+      }
+
+      // Tạo nhóm
+      const room = await chatRoomUseCase.createRoom({
+        name: groupName,
+        description: groupDescription,
+        creatorId: user.id,
+        memberIds: selected,
+        avatar: imageUrl,
+        theme: selectedTheme.name,
+      });
+
+      // Gửi socket cho thành viên
       socket?.emit("group-created", {
         roomId: room.id,
+        avatar: room.avatar,
         name: room.name,
         members: room.members,
-      })
+      });
 
-      if (onGroupCreated) onGroupCreated(room.id)
 
       // Reset form
-      setGroupName("")
-      setGroupDescription("")
-      setSelected([])
-      setStep(1)
-      onClose()
+      setGroupName("");
+      setGroupDescription("");
+      setSelected([]);
+      setPreviewImage(null);
+      setGroupAvatar(null);
+      setStep(1);
+      onClose();
     } catch (err) {
-      console.error("Tạo nhóm lỗi:", err)
+      console.error("Tạo nhóm lỗi:", err);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const nextStep = () => {
-    if (step < 3) setStep(step + 1)
-  }
+    if (step < 3) setStep(step + 1);
+  };
 
   const prevStep = () => {
-    if (step > 1) setStep(step - 1)
-  }
+    if (step > 1) setStep(step - 1);
+  };
 
   const handleClose = () => {
-    setGroupName("")
-    setGroupDescription("")
-    setSelected([])
-    setStep(1)
-    setSelectedTheme(groupThemes[0])
-    onClose()
-  }
+    setGroupName("");
+    setGroupDescription("");
+    setSelected([]);
+    setStep(1);
+    setSelectedTheme(groupThemes[0]);
+    onClose();
+  };
 
-  const canProceedStep1 = groupName.trim().length > 0
-  const canProceedStep2 = selected.length > 0
+  const canProceedStep1 = groupName.trim().length > 0;
+  const canProceedStep2 = selected.length > 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -102,7 +185,7 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
         className="w-[95vw] max-w-[500px] max-h-[90vh] p-0 overflow-hidden bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 [&>button]:hidden"
         onChange={(open) => {
           if (!open) {
-            handleClose()
+            handleClose();
           }
         }}
       >
@@ -151,16 +234,22 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                       "w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-all duration-300",
                       step >= i
                         ? `bg-gradient-to-r ${selectedTheme.gradient} text-white shadow-lg scale-110`
-                        : "bg-gray-200 text-gray-500",
+                        : "bg-gray-200 text-gray-500"
                     )}
                   >
-                    {step > i ? <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4" /> : i}
+                    {step > i ? (
+                      <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                    ) : (
+                      i
+                    )}
                   </div>
                   {i < 3 && (
                     <div
                       className={cn(
                         "w-6 h-0.5 sm:w-8 sm:h-1 mx-0.5 sm:mx-1 rounded-full transition-all duration-300",
-                        step > i ? `bg-gradient-to-r ${selectedTheme.gradient}` : "bg-gray-200",
+                        step > i
+                          ? `bg-gradient-to-r ${selectedTheme.gradient}`
+                          : "bg-gray-200"
                       )}
                     />
                   )}
@@ -179,21 +268,48 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                     <div
                       className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-gradient-to-r ${selectedTheme.gradient} flex items-center justify-center shadow-xl transition-transform group-hover:scale-105`}
                     >
-                      <span className="text-xl sm:text-2xl">{selectedTheme.icon}</span>
+                      {previewImage ? (
+                        <img
+                          src={previewImage}
+                          alt="Preview"
+                          className="object-cover w-full h-full rounded-xl"
+                        />
+                      ) : (
+                        <span className="text-xl sm:text-2xl">
+                          {selectedTheme.icon}
+                        </span>
+                      )}
                     </div>
                     <Button
                       variant="outline"
                       size="icon"
+                      onClick={() => fileInputRef.current?.click()}
                       className="absolute -bottom-1.5 -right-1.5 sm:-bottom-2 sm:-right-2 rounded-full w-6 h-6 sm:w-8 sm:h-8 bg-white border-2 border-gray-200 hover:bg-gray-50 transition-all hover:scale-110"
                     >
                       <Camera className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setGroupAvatar(file);
+                          setPreviewImage(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
                   </div>
                 </div>
 
                 {/* Group Name */}
                 <div className="space-y-2">
-                  <Label htmlFor="groupName" className="text-sm font-medium flex items-center gap-2">
+                  <Label
+                    htmlFor="groupName"
+                    className="text-sm font-medium flex items-center gap-2"
+                  >
                     <Star className="h-4 w-4 text-yellow-500" />
                     Tên nhóm *
                   </Label>
@@ -208,7 +324,10 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
 
                 {/* Group Description */}
                 <div className="space-y-2">
-                  <Label htmlFor="groupDescription" className="text-sm font-medium flex items-center gap-2">
+                  <Label
+                    htmlFor="groupDescription"
+                    className="text-sm font-medium flex items-center gap-2"
+                  >
                     <Heart className="h-4 w-4 text-pink-500" />
                     Mô tả nhóm
                   </Label>
@@ -231,7 +350,10 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                     <UserPlus className="h-4 w-4 text-blue-500" />
                     Chọn thành viên
                   </Label>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs sm:text-sm">
+                  <Badge
+                    variant="secondary"
+                    className="bg-blue-100 text-blue-700 text-xs sm:text-sm"
+                  >
                     {selected.length} đã chọn
                   </Badge>
                 </div>
@@ -240,12 +362,14 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                   {friends.length === 0 ? (
                     <div className="text-center text-gray-500 py-8 sm:py-12">
                       <Users className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-50" />
-                      <p className="text-sm sm:text-base">Không có bạn bè nào để thêm vào nhóm.</p>
+                      <p className="text-sm sm:text-base">
+                        Không có bạn bè nào để thêm vào nhóm.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {friends.map((friend, index) => {
-                        const isSelected = selected.includes(friend.id)
+                        const isSelected = selected.includes(friend.id);
                         return (
                           <div
                             key={friend.id}
@@ -253,7 +377,7 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                               "flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg sm:rounded-xl cursor-pointer transition-all duration-200 hover:scale-[1.02]",
                               isSelected
                                 ? `bg-gradient-to-r ${selectedTheme.gradient} text-white shadow-lg`
-                                : "bg-white/70 hover:bg-white/90 border border-gray-200",
+                                : "bg-white/70 hover:bg-white/90 border border-gray-200"
                             )}
                             onClick={() => toggleSelect(friend.id)}
                             style={{ animationDelay: `${index * 50}ms` }}
@@ -267,20 +391,31 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                               }
                             />
                             <Avatar className="w-8 h-8 sm:w-10 sm:h-10 border-2 border-white/50">
-                              <AvatarImage src={friend.avatar || "/placeholder.svg"} />
+                              <AvatarImage
+                                src={friend.avatar || "/placeholder.svg"}
+                              />
                               <AvatarFallback className="bg-gradient-to-br from-gray-100 to-gray-200 text-xs sm:text-sm">
                                 {friend.username.charAt(0).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm sm:text-base truncate">{friend.username}</p>
-                              <p className={cn("text-xs", isSelected ? "text-white/80" : "text-gray-500")}>
+                              <p className="font-medium text-sm sm:text-base truncate">
+                                {friend.username}
+                              </p>
+                              <p
+                                className={cn(
+                                  "text-xs",
+                                  isSelected ? "text-white/80" : "text-gray-500"
+                                )}
+                              >
                                 Sẵn sàng tham gia
                               </p>
                             </div>
-                            {isSelected && <Zap className="h-3 w-3 sm:h-4 sm:w-4 animate-pulse flex-shrink-0" />}
+                            {isSelected && (
+                              <Zap className="h-3 w-3 sm:h-4 sm:w-4 animate-pulse flex-shrink-0" />
+                            )}
                           </div>
-                        )
+                        );
                       })}
                     </div>
                   )}
@@ -304,7 +439,7 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                         "relative p-3 sm:p-4 rounded-lg sm:rounded-xl cursor-pointer transition-all duration-200 hover:scale-105",
                         selectedTheme.name === theme.name
                           ? "ring-2 ring-blue-500 ring-offset-2 shadow-lg"
-                          : "hover:shadow-md",
+                          : "hover:shadow-md"
                       )}
                       onClick={() => setSelectedTheme(theme)}
                       style={{ animationDelay: `${index * 100}ms` }}
@@ -312,9 +447,13 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
                       <div
                         className={`w-full h-12 sm:h-16 rounded-md sm:rounded-lg bg-gradient-to-r ${theme.gradient} flex items-center justify-center mb-2 shadow-md`}
                       >
-                        <span className="text-lg sm:text-2xl">{theme.icon}</span>
+                        <span className="text-lg sm:text-2xl">
+                          {theme.icon}
+                        </span>
                       </div>
-                      <p className="text-xs sm:text-sm font-medium text-center truncate">{theme.name}</p>
+                      <p className="text-xs sm:text-sm font-medium text-center truncate">
+                        {theme.name}
+                      </p>
                       {selectedTheme.name === theme.name && (
                         <div className="absolute -top-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full flex items-center justify-center">
                           <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
@@ -326,16 +465,24 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
 
                 {/* Preview */}
                 <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-white/70 rounded-lg sm:rounded-xl border-2 border-dashed border-gray-300">
-                  <p className="text-xs sm:text-sm text-gray-600 mb-2">Xem trước nhóm:</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">
+                    Xem trước nhóm:
+                  </p>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div
                       className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-r ${selectedTheme.gradient} flex items-center justify-center shadow-md`}
                     >
-                      <span className="text-base sm:text-lg">{selectedTheme.icon}</span>
+                      <span className="text-base sm:text-lg">
+                        {selectedTheme.icon}
+                      </span>
                     </div>
                     <div>
-                      <p className="font-semibold text-sm sm:text-base truncate">{groupName || "Tên nhóm"}</p>
-                      <p className="text-xs sm:text-sm text-gray-500">{selected.length + 1} thành viên</p>
+                      <p className="font-semibold text-sm sm:text-base truncate">
+                        {groupName || "Tên nhóm"}
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        {selected.length + 1} thành viên
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -358,7 +505,10 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
               {step < 3 ? (
                 <Button
                   onClick={nextStep}
-                  disabled={(step === 1 && !canProceedStep1) || (step === 2 && !canProceedStep2)}
+                  disabled={
+                    (step === 1 && !canProceedStep1) ||
+                    (step === 2 && !canProceedStep2)
+                  }
                   className={`w-full sm:flex-1 h-10 sm:h-12 bg-gradient-to-r ${selectedTheme.gradient} hover:shadow-lg transition-all duration-200 hover:scale-[1.02] text-white border-0 order-1 sm:order-2`}
                 >
                   <span className="mr-2">Tiếp tục</span>
@@ -390,5 +540,5 @@ export const CreateGroupModal = ({ isOpen, onClose, friends, onGroupCreated, soc
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
+  );
+};
