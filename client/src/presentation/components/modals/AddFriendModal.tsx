@@ -25,12 +25,14 @@ import {
   CheckCircle2,
   Users,
   X,
+  UserCheck,
 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import type { User } from "../../../domain/entities/User";
 import { cn } from "@/lib/utils";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface AddFriendModalProps {
   isOpen: boolean;
@@ -54,13 +56,14 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   friendUseCases,
   currentUserId,
 }) => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [sentRequestIds, setSentRequestIds] = useState<string[]>([]);
   const [currentTheme, setCurrentTheme] = useState(friendThemes[0]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+  const [friends, setFriends] = useState<string[]>([]);
   // Rotate theme every few seconds for fun
   useEffect(() => {
     if (isOpen) {
@@ -84,9 +87,16 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
         console.error("Failed to fetch sent requests", err);
       }
     };
+    const fetchFriends = async () => {
+      if (!user) return;
+      const data = await friendUseCases.getConfirmedFriends(user.id);
+      const friendIds = data.map((f) => f.id);
+      setFriends(friendIds);
+    };
 
     if (isOpen) {
       fetchSentRequests();
+      fetchFriends();
     }
   }, [isOpen, friendUseCases, currentUserId]);
 
@@ -123,36 +133,16 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
     [friendUseCases, currentUserId]
   );
 
-  const handleAddFriend = async (e: React.MouseEvent, targetUserId: string) => {
-    e.stopPropagation();
-    try {
-      await friendUseCases.sendFriendRequest(currentUserId!, targetUserId);
-      setSentRequestIds((prev) => [...prev, targetUserId]);
-
-      toast.success("Gửi lời mời kết bạn thành công!", {
-        duration: 4000,
-        style: {
-          border: "1px solid #4ade80",
-          padding: "12px",
-          color: "#16a34a",
-          borderRadius: "12px",
-          background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-        },
-        iconTheme: {
-          primary: "#4ade80",
-          secondary: "#f0fdf4",
-        },
-      });
-    } catch (err) {
-      console.error(err);
-      toast.error("Gửi lời mời thất bại!", {
-        style: {
-          borderRadius: "12px",
-          background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)",
-        },
-      });
-    }
-  };
+  const handleAddFriendFromCard = async (targetUserId: string) => {
+  try {
+    await friendUseCases.sendFriendRequest(currentUserId!, targetUserId);
+    setSentRequestIds((prev) => [...prev, targetUserId]);
+    toast.success("Gửi lời mời kết bạn thành công!");
+  } catch (err) {
+    console.error(err);
+    toast.error("Gửi lời mời thất bại!");
+  }
+};
 
   const handleClose = () => {
     setSearchQuery("");
@@ -163,7 +153,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[500px] max-h-[90vh] p-0 overflow-hidden bg-gradient-to-br from-white via-pink-50/30 to-purple-50/30 [&>button]:hidden">
+      <DialogContent className="w-[95vw] max-w-[500px] max-h-[95vh] p-0 overflow-hidden bg-gradient-to-br from-white via-pink-50/30 to-purple-50/30 [&>button]:hidden">
         {/* Animated Background Elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-4 -right-4 w-20 h-20 sm:w-32 sm:h-32 bg-gradient-to-br from-pink-400/20 to-purple-500/20 rounded-full animate-pulse"></div>
@@ -184,7 +174,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             </button>
 
             {/* Animated Header Icon */}
-            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+            <div className="flex flex-col items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-6">
               <div
                 className={`p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r ${currentTheme.gradient} shadow-xl transition-all duration-500`}
               >
@@ -197,24 +187,24 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
               </div>
             </div>
 
-            <DialogTitle className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-gray-800 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+            <DialogTitle className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-gray-800 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 text-center">
               Kết bạn mới
             </DialogTitle>
-            <DialogDescription className="text-gray-600 text-sm sm:text-base px-2 sm:px-0">
+            <DialogDescription className="text-gray-600 text-sm sm:text-base px-2 sm:px-0 text-center">
               Tìm kiếm và kết nối với những người bạn mới thú vị! 🚀
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 sm:space-y-6">
+          <div className="search-container">
             {/* Enhanced Search Input */}
-            <div className="relative group">
+            <div className="relative group m-2">
               <div className="absolute inset-0 bg-gradient-to-r from-pink-400/20 to-purple-600/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative">
                 <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                 <Input
                   id="search"
                   placeholder="Nhập tên hoặc email..."
-                  className="pr-10 sm:pr-4 h-12 sm:h-14 text-base sm:text-lg border-2 border-gray-200 focus:border-blue-400 rounded-xl bg-white/80 backdrop-blur-sm transition-all duration-200 group-hover:shadow-lg"
+                  className="sm:pr-4 h-12 sm:h-14 text-base sm:text-lg border-2 border-gray-200 focus:border-blue-400 rounded-xl bg-white/80 backdrop-blur-sm transition-all duration-200 group-hover:shadow-lg"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                 />
@@ -233,7 +223,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             </div>
 
             {/* Results Area */}
-            <div className="bg-white/60 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 border-gray-100 shadow-lg overflow-hidden ">
+            <div className="bg-white/60 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 border-gray-100 shadow-lg overflow-hidden mx-2">
               <ScrollArea className="h-[280px] sm:h-[320px]">
                 <div className="">
                   {isSearching ? (
@@ -287,8 +277,8 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                       </p>
                     </div>
                   ) : (
-                    <div className="mx-2 space-y-3 animate-in slide-in-from-bottom-5 duration-300">
-                      <div className="p-2 flex items-center justify-between mb-4">
+                    <div className="space-y-3 animate-in slide-in-from-bottom-5 duration-300">
+                      <div className="p-4 flex items-center justify-between">
                         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
                           <Users className="h-4 w-4 text-blue-500" />
                           Kết quả tìm kiếm
@@ -305,6 +295,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                         const isRequestSent = sentRequestIds.includes(
                           resultUser.id
                         );
+                        const isFriend = friends.includes(resultUser.id);
                         const userTheme =
                           friendThemes[index % friendThemes.length];
 
@@ -318,13 +309,11 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                                 : "bg-white/80 hover:bg-white border-gray-200 hover:border-blue-300 hover:shadow-lg"
                             )}
                             style={{ animationDelay: `${index * 100}ms` }}
-                            onClick={() =>
-                              !isRequestSent &&
-                              handleAddFriend(
-                                {} as React.MouseEvent,
-                                resultUser.id
-                              )
-                            }
+                            onClick={() => {
+                              if (!isFriend && !isRequestSent) {
+                                handleAddFriendFromCard(resultUser.id); // 👈 không gọi stopPropagation
+                              }
+                            }}
                           >
                             <div className="relative flex-shrink-0">
                               <Avatar className="w-12 h-12 sm:w-14 sm:h-14 border-2 sm:border-3 border-white shadow-lg">
@@ -369,13 +358,19 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                             <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
                               <Button
                                 variant={
-                                  isRequestSent ? "secondary" : "default"
+                                  isFriend
+                                    ? "secondary"
+                                    : isRequestSent
+                                    ? "secondary"
+                                    : "default"
                                 }
                                 size="sm"
-                                disabled={isRequestSent}
+                                disabled={isRequestSent || isFriend}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleAddFriend(e, resultUser.id);
+                                  if (!isFriend && !isRequestSent) {
+                                    handleAddFriendFromCard(resultUser.id);
+                                  }
                                 }}
                                 className={cn(
                                   "transition-all duration-200 text-xs sm:text-sm px-3 sm:px-4 h-8 sm:h-9 min-w-[80px] sm:min-w-[120px]",
@@ -384,7 +379,15 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                                     : `bg-gradient-to-r ${userTheme.gradient} hover:shadow-lg hover:scale-105 text-white border-0`
                                 )}
                               >
-                                {isRequestSent ? (
+                                {isFriend ? (
+                                  <>
+                                    <UserCheck className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
+                                    <span className="hidden sm:inline">
+                                      Đã là bạn bè
+                                    </span>
+                                    <span className="sm:hidden">Bạn</span>
+                                  </>
+                                ) : isRequestSent ? (
                                   <>
                                     <CheckCircle2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                                     <span className="hidden sm:inline">
@@ -419,7 +422,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             </div>
 
             {/* Fun Footer */}
-            <div className="text-center">
+            <div className="text-center m-2">
               <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
                 <Heart className="h-4 w-4 text-pink-500" />
                 Hãy kết bạn và chia sẻ những khoảnh khắc tuyệt vời!

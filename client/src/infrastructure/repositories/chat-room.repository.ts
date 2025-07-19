@@ -1,4 +1,5 @@
 import { ChatRoom } from "@/src/domain/entities/ChatRoom";
+import { CreateRoomInput } from "@/src/domain/entities/CreateRoomInput";
 import { AxiosInstance } from "axios";
 import { ApiClient } from "../api/ApiClient";
 
@@ -9,23 +10,16 @@ export class ChatRoomRepository {
     this.apiClient = new ApiClient().instance;
   }
 
-  async createRoom(
-    name: string,
-    ownerId: string,
-    members: string[],
-    avatarUrl?: string
-  ) {
-    const res = await this.apiClient.post(
-      "/chat/room",
-      {
-        name,
-        ownerId,
-        members,
-        avatar: avatarUrl,
-      },
-      { withCredentials: true }
-    );
+  async createRoom(input: CreateRoomInput): Promise<ChatRoom> {
+    const res = await this.apiClient.post("/chatroom/create", input, {
+      withCredentials: true,
+    });
 
+    return res.data;
+  }
+
+  async getRoomsByUser(userId: string): Promise<ChatRoom[]> {
+    const res = await this.apiClient.get(`/chatroom/get-room/${userId}`);
     return res.data;
   }
 }

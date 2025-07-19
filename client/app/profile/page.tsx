@@ -3,6 +3,7 @@
 import { AuthUseCases } from "@/src/application/usecases/auth-use-cases.query";
 import { User as UserModel } from "@/src/domain/entities/User";
 import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
+import { useAuth } from "@/src/presentation/contexts/AuthContext";
 import {
   Calendar,
   Camera,
@@ -146,7 +147,7 @@ const Profile: React.FC = () => {
                   <div className="w-32 h-32 rounded-full bg-white p-2 shadow-lg">
                     {user?.avatar ? (
                       <img
-                        src={user?.avatar}
+                        src={user?.avatar || "/images/user-placeholder.jpg"}
                         alt="Profile"
                         className="w-full h-full rounded-full object-cover"
                       />
