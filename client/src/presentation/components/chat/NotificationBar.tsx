@@ -14,9 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { NotificationUseCases } from "@/src/application/usecases/notifcation-use-cases.query";
-import {
-  AppNotification
-} from "@/src/domain/entities/Notification";
+import { AppNotification } from "@/src/domain/entities/Notification";
 import { User } from "@/src/domain/entities/User";
 import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
 import { NotificationRepository } from "@/src/infrastructure/repositories/notfication.repository";
@@ -36,7 +34,7 @@ interface NotificationBarProps {
 export const NotificationBar: React.FC<NotificationBarProps> = ({
   newNotfications,
   onSelectUser,
-  onFriendAccepted
+  onFriendAccepted,
 }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -58,6 +56,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
         ];
         return merged;
       });
+      console.log(newNotfications);
     }
   }, [newNotfications]);
 
@@ -84,8 +83,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
   useEffect(() => {
     const count = notifications.filter((n) => !n.read).length;
     setUnreadCount(count);
-    playNotificationSound()
-
+    playNotificationSound();
   }, [notifications]);
 
   useEffect(() => {
@@ -96,8 +94,6 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
         setTriggerBell(false);
       }, 1000);
 
-    
-      
       return () => clearTimeout(timeout);
     }
   }, [unreadCount]);
@@ -120,7 +116,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
   const handleAcceptFriendRequest = async (requestId: string) => {
     try {
       await friendUseCases.respondToRequest(requestId, "accept");
-      onFriendAccepted()
+      onFriendAccepted();
       setNotifications((prev) => prev.filter((n) => n.id !== requestId));
     } catch (error) {
       console.error("❌ Accept friend request failed:", error);
@@ -252,7 +248,10 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                     >
                       <Avatar className="w-9 h-9 mt-1 rounded-full overflow-hidden">
                         <AvatarImage
-                          src={notification.sender.avatar || "/images/user-placeholder.svg"}
+                          src={
+                            notification.sender.avatar ||
+                            "/images/user-placeholder.svg"
+                          }
                           alt={notification.sender.username}
                         />
                         <AvatarFallback>
@@ -270,6 +269,57 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                         <span className="text-xs text-gray-500 line-clamp-1">
                           {notification.content}
                         </span>
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                }
+
+                if (notification.type === "acepted-friend-request") {
+                  return (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={cn(
+                        "flex items-start gap-2 p-2 cursor-pointer",
+                        !notification.read && "bg-green-50/50"
+                      )}
+                      onClick={() => {
+                        // Đánh dấu đã đọc
+                        setNotifications((prev) =>
+                          prev.map((n) =>
+                            n.id === notification.id ? { ...n, read: true } : n
+                          )
+                        );
+                        // Mở đoạn chat với người vừa chấp nhận
+                        onSelectUser({
+                          id: notification.id,
+                          username: notification.username,
+                          avatar: notification.avatar,
+                          isOnline: false,
+                          lastSeen: notification.lastSeen,
+                          createdAt: notification.createAt,
+                        } as User);
+                      }}
+                    >
+                      <Avatar className="w-9 h-9 mt-1 rounded-full overflow-hidden">
+                        <AvatarImage
+                          src={
+                            notification.avatar ||
+                            "/images/user-placeholder.svg"
+                          }
+                          alt={notification.username}
+                        />
+                        <AvatarFallback>
+                          {notification.username.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-tight">
+                          <span className="font-semibold">
+                            {notification.username}
+                          </span>{" "}
+                          đã chấp nhận lời mời kết bạn của bạn
+                        </p>
                       </div>
                     </DropdownMenuItem>
                   );

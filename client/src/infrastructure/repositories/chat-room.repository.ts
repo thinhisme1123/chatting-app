@@ -2,6 +2,7 @@ import { ChatRoom } from "@/src/domain/entities/ChatRoom";
 import { CreateRoomInput } from "@/src/domain/entities/CreateRoomInput";
 import { AxiosInstance } from "axios";
 import { ApiClient } from "../api/ApiClient";
+import { GroupMessage } from "@/src/domain/entities/group-message.enity";
 
 export class ChatRoomRepository {
   private readonly apiClient: AxiosInstance;
@@ -21,5 +22,10 @@ export class ChatRoomRepository {
   async getRoomsByUser(userId: string): Promise<ChatRoom[]> {
     const res = await this.apiClient.get(`/chatroom/get-room/${userId}`);
     return res.data;
+  }
+
+  async getGroupMessages(roomId: string): Promise<GroupMessage[]> {
+    const response = await this.apiClient.get(`/chatroom/get-group-messages/${roomId}`);
+    return response.data;
   }
 }

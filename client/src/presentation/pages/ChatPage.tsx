@@ -10,6 +10,7 @@ import { ChatRoom } from "@/src/domain/entities/ChatRoom";
 import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfo";
 import { Message } from "@/src/domain/entities/Message";
 import {
+  AceptedFriendRequestNotification,
   AppNotification,
   FriendRequestNotification,
 } from "@/src/domain/entities/Notification";
@@ -47,6 +48,7 @@ import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
+import toast from "react-hot-toast";
 
 type ChatTarget = User | ChatRoom;
 
@@ -203,7 +205,7 @@ export default function ChatPage() {
       setError("Failed to load users");
       setIsLoading(false);
     }
-  }, [user?.id, selectedUser]);
+  }, [user?.id, selectedUser, chatRooms]);
 
   // Initial setup
   useEffect(() => {
@@ -279,24 +281,20 @@ export default function ChatPage() {
 
   // Socket event handlers
   useEffect(() => {
-    if (!user || !socket || !selectedUser) return;
+    if (!user || !socket) return;
 
-    // Gửi userId để register socket room
     socket.emit("register-user", user.id);
 
     // Nhận tin nhắn realtime
     const handleReceiveMessage = (data: any) => {
       const isOwn = data.fromUserId === user?.id;
-    
+      const isGroupMessage = !!data.roomId;
+      if (isGroupMessage && isOwn) return;
+
       const message = {
         ...data,
         isOwn,
       };
-      console.log(message);
-      
-
-      const isGroupMessage = !!data.roomId;
-
       // 👥 Tin nhắn nhóm
       if (isGroupMessage) {
         const isInCurrentGroup = selectedUser?.id === data.roomId;
@@ -379,11 +377,13 @@ export default function ChatPage() {
     };
 
     // Kiểm tra xem đây có phải là nhóm không
-    const isGroup = "members" in selectedUser;
+    if (selectedUser) {
+      const isGroup = "members" in selectedUser;
 
-    if (isGroup && selectedUser) {
-      socket.emit("join-room", { roomId: selectedUser.id });
-      console.log("Joined room", selectedUser.id);
+      if (isGroup && selectedUser) {
+        socket.emit("join-room", { roomId: selectedUser.id });
+        console.log("Joined room", selectedUser.id);
+      }
     }
 
     // Nhận lời mời kết bạn realtime
@@ -398,15 +398,39 @@ export default function ChatPage() {
 
     // hiển thị bạn mới vừa kết bạn real time
     const handleFriendAccepted = (data: { newFriend: User }) => {
-      setUsers((prev) => [data.newFriend, ...prev]);
-      setFriends((prev) => [data.newFriend, ...prev]);
-      updateLastMessageForUser(data.newFriend.id);
+      const newFriend = data.newFriend;
+
+      // Cập nhật danh sách bạn bè UI
+      setUsers((prev) => [newFriend, ...prev]);
+      setFriends((prev) => [newFriend, ...prev]);
+      updateLastMessageForUser(newFriend.id);
+
+      // 🛎️ Thêm thông báo vào danh sách notification
+      const notification: AceptedFriendRequestNotification & {
+        type: "acepted-friend-request";
+      } = {
+        id: newFriend.id,
+
+        username: newFriend.username,
+        avatar: newFriend.avatar || "/images/user-placeholder.jpg",
+        lastSeen: newFriend.lastSeen,
+        createAt: newFriend.createdAt,
+        read: false,
+        type: "acepted-friend-request",
+      };
+
+      setNotifications((prev) => [notification, ...prev]);
+
+      // Đồng bộ lại danh sách bạn bè từ DB
       fetchUsers();
     };
 
     // hàm xử lí khi có group mới được tạo
-    const handleGroupCreated = (data: any) => {
-      console.log(data);
+    const handleGroupCreated = (newGroup: ChatRoom) => {
+      if (newGroup.members.some((member) => member.id === user.id)) {
+        setChatRooms((prev) => [newGroup, ...prev]);
+        toast.success(`Bạn đã được thêm vào nhóm ${newGroup.name}`);
+      }
     };
 
     // Lắng nghe các sự kiện từ server
@@ -421,7 +445,7 @@ export default function ChatPage() {
       socket.off("friend-request-accepted", handleFriendAccepted);
       socket.off("new-group-notification", handleGroupCreated);
     };
-  }, [user, selectedUser, socket]);
+  }, [user?.id, selectedUser, socket]);
 
   // Chat history and typing handlers
   useEffect(() => {
@@ -534,9 +558,20 @@ export default function ChatPage() {
     }
   };
 
-  const handleGroupSelect = (group: ChatRoom) => {
+  const handleGroupSelect = async (group: ChatRoom) => {
     setSelectedUser(group);
     setMessages([]);
+    console.log("Chon Nhom");
+    
+    const messages = await chatRoomUseCases.getGroupMessage(group.id);
+    console.log(messages);
+    
+    setMessages(
+      messages.map((msg) => ({
+        ...msg,
+        isOwn: msg.fromUserId === user?.id,
+      }))
+    );
     setUsersTyping({});
     setIsTyping(false);
     if (typingTimeoutRef.current) {
@@ -611,11 +646,12 @@ export default function ChatPage() {
 
     if (isGroup) {
       // 👥 Gửi tin nhắn group
+      console.log("send groi messae");
 
       socket.emit("send-group-message", {
         roomId: selectedUser.id,
         content: newMessage,
-        senderId: user.id,
+        fromUserId: user.id,
         senderName: user.username,
         senderAvatar: user.avatar,
         timestamp: new Date(),
@@ -741,7 +777,7 @@ export default function ChatPage() {
               return (
                 <div
                   role="button"
-                  key={item.id}
+                  key={isGroup ? `room-${item.id}` : `user-${item.id}`}
                   onClick={() => {
                     if ("members" in item) {
                       handleGroupSelect(item);

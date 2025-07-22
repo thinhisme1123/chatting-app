@@ -22,6 +22,16 @@ export interface NewMessageNotification {
   read: boolean;
 }
 
+export interface AceptedFriendRequestNotification {
+  id: string;
+  username: string;
+  avatar: string;
+  lastSeen: Date;
+  createAt: Date;
+  read: boolean;
+}
+
 export type AppNotification =
   | (FriendRequestNotification & { type: "friend-request" })
-  | (NewMessageNotification & { type: "new-message" });
+  | (NewMessageNotification & { type: "new-message" })
+  | (AceptedFriendRequestNotification & { type: "acepted-friend-request" })
