@@ -26,4 +26,6 @@ export class ChatUseCases {
   async getHistoryMessages(userId: string, selectedUserId: string) {
     return await this.chatRepository.getMessageHistory(userId, selectedUserId);
   }
+
+  
 }

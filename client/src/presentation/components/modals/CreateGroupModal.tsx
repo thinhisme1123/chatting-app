@@ -33,6 +33,7 @@ import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.
 import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository";
 import { useAuth } from "../../contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
 
 interface Props {
   isOpen: boolean;
@@ -110,7 +111,7 @@ export const CreateGroupModal = ({
       if (groupAvatar) {
         const formData = new FormData();
         formData.append("avatar", groupAvatar);
-        formData.append("userId", user.id); // hoặc không cần nếu backend không yêu cầu
+        formData.append("userId", user.id); 
 
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/user/upload-group-avatar`,
@@ -134,6 +135,7 @@ export const CreateGroupModal = ({
         avatar: imageUrl,
         theme: selectedTheme.name,
       });
+      toast.success("Tạo nhóm thành công!")
 
       // Gửi socket cho thành viên
       socket?.emit("group-created", {
@@ -142,7 +144,6 @@ export const CreateGroupModal = ({
         name: room.name,
         members: room.members,
       });
-
 
       // Reset form
       setGroupName("");
@@ -153,6 +154,7 @@ export const CreateGroupModal = ({
       setStep(1);
       onClose();
     } catch (err) {
+      toast.error("Tạo nhóm thất bại!")
       console.error("Tạo nhóm lỗi:", err);
     } finally {
       setIsLoading(false);
