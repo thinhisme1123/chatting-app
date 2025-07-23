@@ -21,7 +21,7 @@ import { NotificationRepository } from "@/src/infrastructure/repositories/notfic
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import { Bell, CheckCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../../../../styles/notification.scss";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -56,7 +56,6 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
         ];
         return merged;
       });
-      console.log(newNotfications);
     }
   }, [newNotfications]);
 
@@ -80,10 +79,25 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
     fetchNotifications();
   }, [user]);
 
+  const prevNotificationIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
+    const currentIds = new Set(notifications.map((n) => n.id));
+    const prevIds = prevNotificationIdsRef.current;
+
+    // Kiểm tra nếu có ID mới chưa từng có trước đây thì mới play
+    const hasNew = notifications.some((n) => !prevIds.has(n.id));
+
+    // Cập nhật unread count
     const count = notifications.filter((n) => !n.read).length;
     setUnreadCount(count);
-    playNotificationSound();
+
+    if (hasNew) {
+      playNotificationSound();
+    }
+
+    // Cập nhật ref sau khi xử lý
+    prevNotificationIdsRef.current = currentIds;
   }, [notifications]);
 
   useEffect(() => {

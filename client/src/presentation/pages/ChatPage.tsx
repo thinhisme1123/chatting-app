@@ -64,9 +64,9 @@ export default function ChatPage() {
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingMessage, setIsLoadingMessage] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
 
   const chatUseCases = new ChatUseCases(new ChatRepository());
   const friendUseCases = new FriendUseCases(new FriendRepository());
@@ -195,6 +195,8 @@ export default function ChatPage() {
       setUsers(data);
       setFriends(data);
 
+      fetchLastMessages(data);
+
       if (Array.isArray(data) && data.length > 0 && !selectedUser) {
         clearNewMessageForUser(data[0].id);
       }
@@ -205,7 +207,38 @@ export default function ChatPage() {
       setError("Failed to load users");
       setIsLoading(false);
     }
-  }, [user?.id, selectedUser, chatRooms]);
+  }, [user]);
+
+  // fetching last message
+  const fetchLastMessages = async (userList: User[]) => {
+    if (!user || !userList || userList.length === 0) return;
+
+    const newMessagesMap: Record<
+      string,
+      { content: string; timestamp: string }
+    > = {};
+
+    for (const userItem of userList) {
+      try {
+        const message = await chatUseCases.getLastMessage(user.id, userItem.id);
+
+        newMessagesMap[userItem.id] = {
+          content: message?.content || "No messages yet.",
+          timestamp: message?.timestamp
+            ? new Date(message.timestamp).toISOString()
+            : new Date().toISOString(),
+        };
+      } catch (err) {
+        console.error(`Error fetching last message for ${userItem.id}`, err);
+        newMessagesMap[userItem.id] = {
+          content: "Error loading message",
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+
+    setLastMessages(newMessagesMap);
+  };
 
   // Initial setup
   useEffect(() => {
@@ -240,44 +273,6 @@ export default function ChatPage() {
       }
     };
   }, [isClient, fetchUsers]);
-
-  // Fetch last messages
-  useEffect(() => {
-    const fetchAllLastMessages = async () => {
-      if (!users || !user?.id) return;
-
-      const newMessagesMap: Record<
-        string,
-        { content: string; timestamp: string }
-      > = {};
-
-      for (const userItem of users) {
-        try {
-          const message = await chatUseCases.getLastMessage(
-            user.id,
-            userItem.id
-          );
-
-          newMessagesMap[userItem.id] = {
-            content: message?.content || "No messages yet.",
-            timestamp: message?.timestamp
-              ? new Date(message.timestamp).toISOString()
-              : new Date().toISOString(), // fallback to now
-          };
-        } catch (err) {
-          console.error(`Error fetching last message for ${userItem.id}`, err);
-          newMessagesMap[userItem.id] = {
-            content: "Error loading message",
-            timestamp: new Date().toISOString(),
-          };
-        }
-      }
-
-      setLastMessages(newMessagesMap);
-    };
-
-    fetchAllLastMessages();
-  }, [users, user]);
 
   // Socket event handlers
   useEffect(() => {
@@ -420,9 +415,6 @@ export default function ChatPage() {
       };
 
       setNotifications((prev) => [notification, ...prev]);
-
-      // Đồng bộ lại danh sách bạn bè từ DB
-      fetchUsers();
     };
 
     // hàm xử lí khi có group mới được tạo
@@ -451,34 +443,50 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedUser || !user || !socket) return;
 
-    //fetching message history
+    const isGroup = "members" in selectedUser;
+    setIsLoadingMessage(true);
+
     const fetchHistory = async () => {
       try {
-        const data = await chatUseCases.getHistoryMessages(
-          user.id,
-          selectedUser.id
-        );
-        setMessages(
-          data.map((msg: Message) => ({
-            ...msg,
-            isOwn: msg.fromUserId === user.id,
-          }))
-        );
+        if (isGroup) {
+          // Lấy tin nhắn nhóm
+          const groupMessages = await chatRoomUseCases.getGroupMessage(
+            selectedUser.id
+          );
+          setMessages(
+            groupMessages.map((msg) => ({
+              ...msg,
+              isOwn: msg.fromUserId === user.id,
+            }))
+          );
+        } else {
+          // Lấy tin nhắn 1-1
+          const messages = await chatUseCases.getHistoryMessages(
+            user.id,
+            selectedUser.id
+          );
+          setMessages(
+            messages.map((msg) => ({
+              ...msg,
+              isOwn: msg.fromUserId === user.id,
+            }))
+          );
+        }
       } catch (error) {
-        console.error("Error fetching chat history:", error);
+        console.error("❌ Error fetching chat history:", error);
+      } finally {
+        setIsLoadingMessage(false);
       }
     };
 
+    // Cập nhật tiêu đề của tab
     if (typeof document !== "undefined") {
-      if ("username" in selectedUser) {
-        document.title = selectedUser.username;
-      } else {
-        document.title = selectedUser.name;
-      }
+      document.title = isGroup ? selectedUser.name : selectedUser.username;
     }
 
     fetchHistory();
 
+    // Gửi typing chỉ áp dụng cho 1-1
     const handleTyping = ({
       userId,
       username,
@@ -486,29 +494,64 @@ export default function ChatPage() {
       userId: string;
       username: string;
     }) => {
-      if (selectedUser?.id === userId) {
+      if (!isGroup && selectedUser?.id === userId) {
         setTypingUserName(username);
         setTimeout(() => {
-          const el = document.querySelector("#chat-end");
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth" });
-          }
+          document
+            .querySelector("#chat-end")
+            ?.scrollIntoView({ behavior: "smooth" });
         }, 50);
       }
     };
 
-    const handleStopTyping = ({ userId }: { userId: string }) => {
-      if (selectedUser?.id === userId) {
+    // Listen for typing in group
+    const handleGroupTyping = ({
+      roomId,
+      username,
+      userId,
+    }: {
+      roomId: string;
+      username: string;
+      userId: string;
+    }) => {
+      console.log(username);
+      if (selectedUser?.id === roomId && user.id !== userId) {
+        setTypingUserName(username);
+      }
+    };
+
+    const handleGroupStopTyping = ({
+      roomId,
+      userId,
+    }: {
+      roomId: string;
+      userId: string;
+    }) => {
+      if (selectedUser?.id === roomId && user.id !== userId) {
         setTypingUserName(null);
       }
     };
 
-    socket.on("user-typing", handleTyping);
-    socket.on("user-stop-typing", handleStopTyping);
+    const handleStopTyping = ({ userId }: { userId: string }) => {
+      if (!isGroup && selectedUser?.id === userId) {
+        setTypingUserName(null);
+      }
+    };
+
+    if (!isGroup) {
+      socket.on("group-typing", handleGroupTyping);
+      socket.on("group-stop-typing", handleGroupStopTyping);
+      socket.on("user-typing", handleTyping);
+      socket.on("user-stop-typing", handleStopTyping);
+    }
 
     return () => {
-      socket.off("user-typing", handleTyping);
-      socket.off("user-stop-typing", handleStopTyping);
+      if (!isGroup) {
+        socket.off("user-typing", handleTyping);
+        socket.off("user-stop-typing", handleStopTyping);
+        socket.off("group-typing", handleGroupTyping);
+        socket.off("group-stop-typing", handleGroupStopTyping);
+      }
     };
   }, [selectedUser, user, socket]);
 
@@ -529,24 +572,6 @@ export default function ChatPage() {
     }
   }, [usersTyping]);
 
-  useEffect(() => {
-    if (!user) return;
-
-    const delayDebounce = setTimeout(async () => {
-      if (searchQuery.trim() === "") {
-        setFilteredUsers(users || []);
-      } else {
-        const result = await friendUseCases.searchConfirmedFriends(
-          user.id,
-          searchQuery
-        );
-        setFilteredUsers(result);
-      }
-    }, 300);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery]);
-
   // Handle user selection
   const handleUserSelect = (selected: User) => {
     setSelectedUser(selected);
@@ -558,20 +583,10 @@ export default function ChatPage() {
     }
   };
 
+  // handle group selection
   const handleGroupSelect = async (group: ChatRoom) => {
-    setSelectedUser(group);
     setMessages([]);
-    console.log("Chon Nhom");
-    
-    const messages = await chatRoomUseCases.getGroupMessage(group.id);
-    console.log(messages);
-    
-    setMessages(
-      messages.map((msg) => ({
-        ...msg,
-        isOwn: msg.fromUserId === user?.id,
-      }))
-    );
+    setSelectedUser(group);
     setUsersTyping({});
     setIsTyping(false);
     if (typingTimeoutRef.current) {
@@ -586,33 +601,63 @@ export default function ChatPage() {
 
     if (!selectedUser || !user || !socket) return;
 
+    const isGroup = "members" in selectedUser;
+
+    // Emit typing nếu có text và chưa đánh dấu là đang typing
     if (value.length > 0 && !isTyping) {
       setIsTyping(true);
-      socket.emit("typing", {
-        userId: user.id,
-        username: user.username,
-        toUserId: selectedUser.id,
-      });
+
+      if (isGroup) {
+        socket.emit("group-typing", {
+          roomId: selectedUser.id,
+          userId: user.id,
+          username: user.username,
+        });
+      } else {
+        socket.emit("typing", {
+          userId: user.id,
+          username: user.username,
+          toUserId: selectedUser.id,
+        });
+      }
     }
 
+    // Clear và reset timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      socket.emit("stop-typing", {
-        userId: user.id,
-        toUserId: selectedUser.id,
-      });
+
+      if (isGroup) {
+        socket.emit("group-stop-typing", {
+          roomId: selectedUser.id,
+          userId: user.id,
+        });
+      } else {
+        socket.emit("stop-typing", {
+          userId: user.id,
+          toUserId: selectedUser.id,
+        });
+      }
     }, 1500);
 
+    // Nếu xoá hết nội dung
     if (value.length === 0) {
       setIsTyping(false);
-      socket.emit("stop-typing", {
-        userId: user.id,
-        toUserId: selectedUser.id,
-      });
+      if (isGroup) {
+        socket.emit("group-stop-typing", {
+          roomId: selectedUser.id,
+          userId: user.id,
+        });
+      } else {
+        socket.emit("stop-typing", {
+          userId: user.id,
+          toUserId: selectedUser.id,
+        });
+      }
+
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
@@ -931,58 +976,71 @@ export default function ChatPage() {
             {/* Messages Area */}
             <ScrollArea className={`flex-1 p-4 ${isMobile ? "mt-6" : ""}`}>
               <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex gap-3 ${
-                      message.isOwn ? "flex-row-reverse" : ""
-                    }`}
-                  >
-                    {!message.isOwn && (
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage
-                          src={
-                            message.senderAvatar ||
-                            selectedUser?.avatar ||
-                            "/images/user-placeholder.jpg"
-                          }
-                        />
-                      </Avatar>
-                    )}
-
-                    <div
-                      className={`flex flex-col ${
-                        message.isOwn ? "items-end" : "items-start"
-                      }`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                          message.isOwn
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-100 text-gray-900"
-                        }`}
-                      >
-                        <p className="text-sm break-words whitespace-pre-wrap">
-                          {message.content}
-                        </p>
-                      </div>
-                      <span className="text-xs text-gray-500 mt-1">
-                        {new Date(message.timestamp).toLocaleTimeString(
-                          "vi-VN",
-                          {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }
-                        )}
-                      </span>
+                {isLoadingMessage ? (
+                  <div className=" flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p>Đang tải tin nhắn...</p>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex gap-3 ${
+                        message.isOwn ? "flex-row-reverse" : ""
+                      }`}
+                    >
+                      {!message.isOwn && (
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage
+                            src={
+                              message.senderAvatar ||
+                              selectedUser?.avatar ||
+                              "/images/user-placeholder.jpg"
+                            }
+                          />
+                        </Avatar>
+                      )}
+
+                      <div
+                        className={`flex flex-col ${
+                          message.isOwn ? "items-end" : "items-start"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                            message.isOwn
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-900"
+                          }`}
+                        >
+                          <p className="text-sm break-words whitespace-pre-wrap">
+                            {message.content}
+                          </p>
+                        </div>
+                        <span className="text-xs text-gray-500 mt-1">
+                          {new Date(message.timestamp).toLocaleTimeString(
+                            "vi-VN",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
 
                 {typingUserName && (
                   <TypingIndicator
                     username={typingUserName}
-                    avatar={selectedUser?.avatar as string}
+                    avatar={
+                      selectedUser && "members" in selectedUser
+                        ? "/images/typing.gif"
+                        : (selectedUser?.avatar as string)
+                    }
                   />
                 )}
 
