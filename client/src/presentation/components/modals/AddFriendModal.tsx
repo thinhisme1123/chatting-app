@@ -311,14 +311,14 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                             style={{ animationDelay: `${index * 100}ms` }}
                             onClick={() => {
                               if (!isFriend && !isRequestSent) {
-                                handleAddFriendFromCard(resultUser.id); // 👈 không gọi stopPropagation
+                                handleAddFriendFromCard(resultUser.id); 
                               }
                             }}
                           >
                             <div className="relative flex-shrink-0">
                               <Avatar className="w-12 h-12 sm:w-14 sm:h-14 border-2 sm:border-3 border-white shadow-lg">
                                 <AvatarImage
-                                  src={resultUser.avatar || "/placeholder.svg"}
+                                  src={resultUser.avatar || "/images/user-placeholder.svg"}
                                 />
                                 <AvatarFallback
                                   className={`bg-gradient-to-r ${userTheme.gradient} text-white text-base sm:text-lg font-bold`}
