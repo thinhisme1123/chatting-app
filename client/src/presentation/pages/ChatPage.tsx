@@ -79,6 +79,9 @@ export default function ChatPage() {
   // Typing indicator states
   const [typingUserName, setTypingUserName] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [avatarGroupUserTyping, setAvatarGroupUserTyping] = useState<
+    string | null
+  >(null);
   const [usersTyping, setUsersTyping] = useState<{ [key: string]: string }>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -509,17 +512,25 @@ export default function ChatPage() {
       roomId,
       username,
       userId,
+      avatar,
     }: {
       roomId: string;
       username: string;
       userId: string;
+      avatar: string;
     }) => {
-      console.log(username);
       if (selectedUser?.id === roomId && user.id !== userId) {
+        setAvatarGroupUserTyping(avatar);
         setTypingUserName(username);
+        setTimeout(() => {
+          document
+            .querySelector("#chat-end")
+            ?.scrollIntoView({ behavior: "smooth" });
+        }, 50);
       }
     };
 
+    //handle group stop typing
     const handleGroupStopTyping = ({
       roomId,
       userId,
@@ -527,8 +538,15 @@ export default function ChatPage() {
       roomId: string;
       userId: string;
     }) => {
+      console.log(roomId);
+      console.log(userId);
+
+      console.log(user.id);
+
       if (selectedUser?.id === roomId && user.id !== userId) {
+        console.log("Enter send message");
         setTypingUserName(null);
+        setAvatarGroupUserTyping(null);
       }
     };
 
@@ -539,18 +557,20 @@ export default function ChatPage() {
     };
 
     if (!isGroup) {
-      socket.on("group-typing", handleGroupTyping);
-      socket.on("group-stop-typing", handleGroupStopTyping);
       socket.on("user-typing", handleTyping);
       socket.on("user-stop-typing", handleStopTyping);
+    } else {
+      socket.on("group-user-typing", handleGroupTyping);
+      socket.on("group-user-stop-typing", handleGroupStopTyping);
     }
 
     return () => {
       if (!isGroup) {
         socket.off("user-typing", handleTyping);
         socket.off("user-stop-typing", handleStopTyping);
-        socket.off("group-typing", handleGroupTyping);
-        socket.off("group-stop-typing", handleGroupStopTyping);
+      } else {
+        socket.off("group-user-typing", handleGroupTyping);
+        socket.off("group-user-stop-typing", handleGroupStopTyping);
       }
     };
   }, [selectedUser, user, socket]);
@@ -612,6 +632,7 @@ export default function ChatPage() {
           roomId: selectedUser.id,
           userId: user.id,
           username: user.username,
+          avatar: user.avatar,
         });
       } else {
         socket.emit("typing", {
@@ -666,6 +687,7 @@ export default function ChatPage() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!newMessage.trim() || !selectedUser || !socket || !user) return;
 
     const isGroup = "members" in selectedUser;
@@ -691,8 +713,6 @@ export default function ChatPage() {
 
     if (isGroup) {
       // 👥 Gửi tin nhắn group
-      console.log("send groi messae");
-
       socket.emit("send-group-message", {
         roomId: selectedUser.id,
         content: newMessage,
@@ -701,6 +721,11 @@ export default function ChatPage() {
         senderAvatar: user.avatar,
         timestamp: new Date(),
       });
+      // stop member typing
+      socket.emit("group-stop-typing", {
+          roomId: selectedUser.id,
+          userId: user.id,
+        });
     } else {
       // 👤 Gửi tin nhắn 1-1
       socket.emit("send-message", {
@@ -717,7 +742,7 @@ export default function ChatPage() {
         toUserId: selectedUser.id,
       });
     }
-
+    setIsTyping(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     setNewMessage("");
@@ -995,9 +1020,11 @@ export default function ChatPage() {
                         <Avatar className="w-8 h-8">
                           <AvatarImage
                             src={
-                              message.senderAvatar ||
-                              selectedUser?.avatar ||
-                              "/images/user-placeholder.jpg"
+                              message.senderAvatar?.trim()
+                                ? message.senderAvatar // ✅ Group chat – user avatar
+                                : selectedUser?.avatar?.trim()
+                                ? selectedUser.avatar // ✅ 1-1 chat – other user's avatar
+                                : "/images/user-placeholder.jpg"
                             }
                           />
                         </Avatar>
@@ -1038,7 +1065,8 @@ export default function ChatPage() {
                     username={typingUserName}
                     avatar={
                       selectedUser && "members" in selectedUser
-                        ? "/images/typing.gif"
+                        ? avatarGroupUserTyping ||
+                          "/images/user-placeholder.jpg"
                         : (selectedUser?.avatar as string)
                     }
                   />
