@@ -687,7 +687,6 @@ export default function ChatPage() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!newMessage.trim() || !selectedUser || !socket || !user) return;
 
     const isGroup = "members" in selectedUser;
@@ -700,10 +699,8 @@ export default function ChatPage() {
       timestamp: new Date(),
       isOwn: true,
     };
-
     // Hiển thị tin nhắn ngay lập tức ở FE
     setMessages((prev) => [...prev, message]);
-
     // Scroll to bottom
     setTimeout(() => {
       document
@@ -735,7 +732,6 @@ export default function ChatPage() {
         senderAvatar: user.avatar,
         message: newMessage,
       });
-
       // Emit stop typing
       socket.emit("stop-typing", {
         userId: user.id,
