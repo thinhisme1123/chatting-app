@@ -133,7 +133,7 @@ function AuthPageContent() {
           <div className="mt-8 text-center">
             <p className="text-xs text-gray-500 flex items-center justify-center">
               Made with <Heart className="h-3 w-3 text-red-500 mx-1" /> by
-              ChatApp Team
+              Thinhjbeos
             </p>
           </div>
         </div>

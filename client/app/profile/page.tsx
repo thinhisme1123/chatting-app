@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 
 const Profile: React.FC = () => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -93,12 +94,13 @@ const Profile: React.FC = () => {
 
       const data = await response.json();
       const imageUrl = data.imageUrl;
-      
+      toast.success("Cập nhật ảnh đại diện thành công!")
       setPreviewImage(null); 
       setUser({ ...user, avatar: imageUrl }); 
       localStorage.setItem("user", JSON.stringify({ ...user, avatar: imageUrl }));
       fileInputRef.current.value = "";
     } catch (err) {
+       toast.error("Cập nhật ảnh đại diện thất bại!")
       console.error("Image upload failed:", err);
     } finally {
       setIsUploading(false);

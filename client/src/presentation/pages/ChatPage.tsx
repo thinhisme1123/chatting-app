@@ -38,6 +38,7 @@ import {
   UserPlus,
   Users,
   Video,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
@@ -49,6 +50,7 @@ import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import toast from "react-hot-toast";
+import { MessageOptions } from "../components/chat/MessageOptions";
 
 type ChatTarget = User | ChatRoom;
 
@@ -65,6 +67,14 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [replyingToMessage, setReplyingToMessage] = useState<{
+    id: string;
+    senderName: string;
+    content: string;
+  } | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -85,6 +95,7 @@ export default function ChatPage() {
   const [usersTyping, setUsersTyping] = useState<{ [key: string]: string }>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // set new message come and show last message
   const [newMessageUserIds, setNewMessageUserIds] = useState<string[]>([]);
   const [lastMessages, setLastMessages] = useState<
     Record<string, LastMessageInfo>
@@ -140,6 +151,32 @@ export default function ChatPage() {
     } catch (err) {
       console.error("Error updating last message:", err);
     }
+  };
+
+  const handleEditMessage = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingContent(content);
+    console.log(messageId);
+    console.log(content);
+  };
+
+  const handleReplyToMessage = (
+    messageId: string,
+    senderName: string,
+    content: string
+  ) => {
+    setReplyingToMessage({ id: messageId, senderName, content });
+    console.log(messageId);
+    console.log(content);
+  };
+
+  const handleCopyMessage = (messageId: string, content: string) => {
+    // You can add a toast notification here if needed
+    console.log(`Message ${messageId} copied: ${content}`);
+  };
+
+  const cancelReply = () => {
+    setReplyingToMessage(null);
   };
 
   // Socket initialization
@@ -363,12 +400,11 @@ export default function ChatPage() {
         if (
           typeof window !== "undefined" &&
           "Notification" in window &&
-          Notification.permission === "granted" &&
-          document.visibilityState !== "visible"
+          Notification.permission === "granted"
         ) {
           new Notification(`${data.senderName} đã nhắn tin cho bạn`, {
             body: message.content,
-            icon: "/images/chat-icon-2.png",
+            icon: message.senderAvatar || "/images/chat-icon-2.png",
           });
         }
       }
@@ -698,10 +734,11 @@ export default function ChatPage() {
       content: newMessage,
       timestamp: new Date(),
       isOwn: true,
+      replyTo: replyingToMessage || undefined,
     };
-    // Hiển thị tin nhắn ngay lập tức ở FE
+
     setMessages((prev) => [...prev, message]);
-    // Scroll to bottom
+
     setTimeout(() => {
       document
         .querySelector("#chat-end")
@@ -709,7 +746,6 @@ export default function ChatPage() {
     }, 50);
 
     if (isGroup) {
-      // 👥 Gửi tin nhắn group
       socket.emit("send-group-message", {
         roomId: selectedUser.id,
         content: newMessage,
@@ -717,31 +753,32 @@ export default function ChatPage() {
         senderName: user.username,
         senderAvatar: user.avatar,
         timestamp: new Date(),
+        replyTo: replyingToMessage || undefined,
       });
-      // stop member typing
       socket.emit("group-stop-typing", {
-          roomId: selectedUser.id,
-          userId: user.id,
-        });
+        roomId: selectedUser.id,
+        userId: user.id,
+      });
     } else {
-      // 👤 Gửi tin nhắn 1-1
       socket.emit("send-message", {
         fromUserId: user.id,
         toUserId: selectedUser.id,
         senderName: user.username,
         senderAvatar: user.avatar,
         message: newMessage,
+        replyTo: replyingToMessage || undefined,
       });
-      // Emit stop typing
       socket.emit("stop-typing", {
         userId: user.id,
         toUserId: selectedUser.id,
       });
     }
+
     setIsTyping(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     setNewMessage("");
+    setReplyingToMessage(null); // ✅ Clear reply after send
     updateLastMessageForUser(selectedUser.id);
   };
 
@@ -1032,16 +1069,54 @@ export default function ChatPage() {
                         }`}
                       >
                         <div
-                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                            message.isOwn
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-100 text-gray-900"
+                          className={`message-content flex ${
+                            message.isOwn ? "flex-row-reverse" : ""
                           }`}
                         >
-                          <p className="text-sm break-words whitespace-pre-wrap">
-                            {message.content}
-                          </p>
+                          <div className="flex flex-col gap-1">
+                            {/* Reply Preview */}
+                            {message.replyTo && (
+                              <div
+                                className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 ${
+                                  message.isOwn
+                                    ? "border-blue-500"
+                                    : "border-gray-400"
+                                }`}
+                              >
+                                <p className="text-sm font-semibold text-gray-700 leading-tight">
+                                  {message.replyTo.senderName}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {message.replyTo.content}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Actual Message Bubble */}
+                            <div
+                              className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
+                                message.isOwn
+                                  ? "bg-blue-600 text-white self-end"
+                                  : "bg-gray-200 text-gray-900 self-start"
+                              }`}
+                            >
+                              <p className="text-sm leading-snug whitespace-pre-wrap break-words">
+                                {message.content}
+                              </p>
+                            </div>
+                          </div>
+
+                          <MessageOptions
+                            messageId={message.id}
+                            messageContent={message.content}
+                            senderName={message.senderName}
+                            isOwn={message.isOwn}
+                            onEdit={handleEditMessage}
+                            onReply={handleReplyToMessage}
+                            onCopy={handleCopyMessage}
+                          />
                         </div>
+
                         <span className="text-xs text-gray-500 mt-1">
                           {new Date(message.timestamp).toLocaleTimeString(
                             "vi-VN",
@@ -1055,7 +1130,6 @@ export default function ChatPage() {
                     </div>
                   ))
                 )}
-
                 {typingUserName && (
                   <TypingIndicator
                     username={typingUserName}
@@ -1067,10 +1141,36 @@ export default function ChatPage() {
                     }
                   />
                 )}
-
                 <div id="chat-end" />
               </div>
             </ScrollArea>
+
+            {/* Reply Preview */}
+            {replyingToMessage && (
+              <div className="border-t bg-gray-50 p-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-1 h-12 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        Đang trả lời {replyingToMessage.senderName}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 truncate">
+                      {replyingToMessage.content}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={cancelReply}
+                    className="h-6 w-6 p-0 hover:bg-gray-200 rounded-full flex-shrink-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Message Input */}
             <div className="border-t p-4 sticky bottom-0 bg-white z-10">

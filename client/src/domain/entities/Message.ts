@@ -6,7 +6,11 @@ export interface Message {
   toUserId: string;
   senderName: string;
   content: string;
-  messageType: string;
   isRead: boolean;
   timestamp: Date;
+  replyTo?: {
+    id: string;
+    content: string;
+    senderName: string;
+  };
 }
