@@ -5,4 +5,9 @@ export interface Message {
   senderName: string;
   content: string;
   timestamp: Date;
+  replyTo?: {
+    id: string;
+    content: string;
+    senderName: string;
+  } | null;
 }
