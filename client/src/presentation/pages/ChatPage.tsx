@@ -8,7 +8,6 @@ import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { ChatRoom } from "@/src/domain/entities/ChatRoom";
 import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfo";
-import { Message } from "@/src/domain/entities/Message";
 import {
   AceptedFriendRequestNotification,
   AppNotification,
@@ -28,8 +27,10 @@ import {
 } from "@radix-ui/react-dropdown-menu";
 import {
   ArrowLeft,
+  ImageIcon,
   LogOut,
   MoreVertical,
+  Paperclip,
   Phone,
   Plus,
   Search,
@@ -43,16 +44,14 @@ import {
 import Link from "next/link";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { io, Socket } from "socket.io-client";
+import { MessageOptions } from "../components/chat/MessageOptions";
 import { NotificationBar } from "../components/chat/NotificationBar";
 import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-import toast from "react-hot-toast";
-import { MessageOptions } from "../components/chat/MessageOptions";
-
-type ChatTarget = User | ChatRoom;
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -68,6 +67,21 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
 
+  const chatInputBoxRef = useRef<HTMLInputElement | null>(null);
+  // Image handling states
+  const [pastedImages, setPastedImages] = useState<
+    Array<{
+      id: string
+      file: File
+      preview: string
+      name: string
+      size: number
+    }>
+  >([])
+  const [isDragOver, setIsDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [replyingToMessage, setReplyingToMessage] = useState<{
@@ -76,6 +90,7 @@ export default function ChatPage() {
     content: string;
   } | null>(null);
 
+  // search friend input box
   const [searchQuery, setSearchQuery] = useState("");
 
   const chatUseCases = new ChatUseCases(new ChatRepository());
@@ -135,6 +150,96 @@ export default function ChatPage() {
     setNewMessageUserIds((prev) => prev.filter((uid) => uid !== id));
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.indexOf("image") !== -1) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          await addImageToPreview(file)
+        }
+      }
+    }
+  }
+
+  const addImageToPreview = async (file: File) => {
+    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9)
+    const preview = URL.createObjectURL(file)
+
+    const newImage = {
+      id,
+      file,
+      preview,
+      name: file.name || `image-${id}.png`,
+      size: file.size,
+    }
+
+    setPastedImages((prev) => [...prev, newImage])
+  }
+
+  const removeImage = (id: string) => {
+    setPastedImages((prev) => {
+      const imageToRemove = prev.find((img) => img.id === id)
+      if (imageToRemove) {
+        URL.revokeObjectURL(imageToRemove.preview)
+      }
+      return prev.filter((img) => img.id !== id)
+    })
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (file.type.startsWith("image/")) {
+        await addImageToPreview(file)
+      }
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+
+    const files = e.dataTransfer.files
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (file.type.startsWith("image/")) {
+        await addImageToPreview(file)
+      }
+    }
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes"
+    const k = 1024
+    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+  }
+
   const updateLastMessageForUser = async (friendId: string) => {
     if (!user?.id) return;
     try {
@@ -156,8 +261,6 @@ export default function ChatPage() {
   const handleEditMessage = (messageId: string, content: string) => {
     setEditingMessageId(messageId);
     setEditingContent(content);
-    console.log(messageId);
-    console.log(content);
   };
 
   const handleReplyToMessage = (
@@ -165,10 +268,27 @@ export default function ChatPage() {
     senderName: string,
     content: string
   ) => {
+    //handle focus message input box
     setReplyingToMessage({ id: messageId, senderName, content });
-    console.log(messageId);
-    console.log(content);
+    chatInputBoxRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (!replyingToMessage || !chatInputBoxRef.current) return;
+
+    let attempts = 0;
+    const input = chatInputBoxRef.current;
+
+    const forceFocus = () => {
+      input.focus();
+      if (document.activeElement !== input && attempts < 5) {
+        attempts++;
+        setTimeout(forceFocus, 50);
+      }
+    };
+
+    forceFocus();
+  }, [replyingToMessage]);
 
   const handleCopyMessage = (messageId: string, content: string) => {
     // You can add a toast notification here if needed
@@ -330,6 +450,8 @@ export default function ChatPage() {
         ...data,
         isOwn,
       };
+      console.log(message);
+
       // 👥 Tin nhắn nhóm
       if (isGroupMessage) {
         const isInCurrentGroup = selectedUser?.id === data.roomId;
@@ -481,7 +603,8 @@ export default function ChatPage() {
   // Chat history and typing handlers
   useEffect(() => {
     if (!selectedUser || !user || !socket) return;
-
+    chatInputBoxRef.current?.focus();
+    setReplyingToMessage(null);
     const isGroup = "members" in selectedUser;
     setIsLoadingMessage(true);
 
@@ -489,9 +612,13 @@ export default function ChatPage() {
       try {
         if (isGroup) {
           // Lấy tin nhắn nhóm
+          console.log("lay tin nhan nhom");
+          
           const groupMessages = await chatRoomUseCases.getGroupMessage(
             selectedUser.id
           );
+          console.log(groupMessages);
+          
           setMessages(
             groupMessages.map((msg) => ({
               ...msg,
@@ -641,8 +768,9 @@ export default function ChatPage() {
 
   // handle group selection
   const handleGroupSelect = async (group: ChatRoom) => {
-    setMessages([]);
+    
     setSelectedUser(group);
+    setMessages([]);
     setUsersTyping({});
     setIsTyping(false);
     if (typingTimeoutRef.current) {
@@ -1172,24 +1300,70 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Message Input */}
-            <div className="border-t p-4 sticky bottom-0 bg-white z-10">
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <Input
-                  value={newMessage}
-                  onChange={handleInputChange}
-                  placeholder={`Nhập tin nhắn gửi ${
-                    "username" in selectedUser
-                      ? selectedUser.username
-                      : selectedUser?.name || ""
-                  }...`}
-                  className="flex-1"
-                />
-                <Button type="submit" size="icon">
+            {/* Input Form */}
+              <form onSubmit={handleSendMessage} className="flex gap-2 p-2">
+                <div
+                  className={`flex-1 relative ${isDragOver ? "ring-2 ring-blue-500 ring-opacity-50" : ""}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <Input
+                    ref={chatInputBoxRef}
+                    value={newMessage}
+                    onChange={handleInputChange}
+                    onPaste={handlePaste}
+                    placeholder={
+                      replyingToMessage
+                        ? `Trả lời ${replyingToMessage.senderName}...`
+                        : `Nhập tin nhắn gửi ${
+                            "username" in selectedUser ? selectedUser.username : selectedUser?.name || ""
+                          }...`
+                    }
+                    className="pr-10"
+                  />
+
+                  {/* File Input Button */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100 rounded-full"
+                  >
+                    <Paperclip className="h-4 w-4 text-gray-500" />
+                  </Button>
+
+                  {/* Hidden File Input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+
+                  {/* Drag Overlay */}
+                  {isDragOver && (
+                    <div className="absolute inset-0 bg-blue-50 bg-opacity-90 border-2 border-dashed border-blue-300 rounded-md flex items-center justify-center">
+                      <div className="text-center">
+                        <ImageIcon className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+                        <p className="text-sm text-blue-600 font-medium">Thả hình ảnh vào đây</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!newMessage.trim() && pastedImages.length === 0}
+                  className="flex-shrink-0"
+                >
                   <Send className="h-4 w-4" />
                 </Button>
               </form>
-            </div>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">

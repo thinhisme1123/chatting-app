@@ -20,6 +20,20 @@ export class ApiClient {
       }
       return config
     })
+
+    // Handle token expiration
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          // Remove the expired token
+          localStorage.removeItem("auth_token")
+          // Redirect to login page
+          window.location.href = "/"
+        }
+        return Promise.reject(error)
+      }
+    )
   }
 
   get instance() {
