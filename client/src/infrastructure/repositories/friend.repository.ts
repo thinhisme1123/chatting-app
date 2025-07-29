@@ -54,16 +54,17 @@ export class FriendRepository implements IFriendRepository {
 
   // GET: get confirm friend and list ChatPage
   async getConfirmedFriends(currentUserId: string): Promise<User[]> {
-    const response = await this.apiClient.post("/friend/list", {
-      userId: currentUserId,
-    });
+    const response = await this.apiClient.post(
+      "/friend/list",
+      {
+        userId: currentUserId,
+      },
+      { withCredentials: true }
+    );
     return response.data;
   }
 
-  async searchConfirmedFriends(
-    userId: string,
-    query: string
-  ): Promise<User[]> {
+  async searchConfirmedFriends(userId: string, query: string): Promise<User[]> {
     const response = await this.apiClient.get(`/friend/search`, {
       params: {
         userId,
