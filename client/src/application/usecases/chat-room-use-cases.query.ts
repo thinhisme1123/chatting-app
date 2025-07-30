@@ -17,4 +17,8 @@ export class ChatRoomUseCase {
   async getGroupMessage(roomId: string): Promise<GroupMessage[]> {
     return this.repo.getGroupMessages(roomId);
   }
+
+  async getGroupLastMessage(roomId: string): Promise<GroupMessage> {
+    return this.repo.getGroupLastMessage(roomId);
+  }
 }
