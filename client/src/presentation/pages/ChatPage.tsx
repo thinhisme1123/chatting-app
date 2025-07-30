@@ -1059,8 +1059,7 @@ export default function ChatPage() {
                 lastMessages[item.id]?.content || "No message yet.";
               const lastMsg = truncate(rawMsg);
               const isOnline = !isGroup && onlineUserIds.includes(item.id); // chỉ áp dụng với user
-              console.log(rawMsg);
-
+              
               return (
                 <div
                   role="button"
