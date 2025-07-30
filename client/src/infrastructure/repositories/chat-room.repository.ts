@@ -3,8 +3,9 @@ import { CreateRoomInput } from "@/src/domain/entities/CreateRoomInput";
 import { AxiosInstance } from "axios";
 import { ApiClient } from "../api/ApiClient";
 import { GroupMessage } from "@/src/domain/entities/group-message.enity";
+import { IChatRoomRepository } from "@/src/domain/interfaces/IChatRoomRepository";
 
-export class ChatRoomRepository {
+export class ChatRoomRepository implements IChatRoomRepository {
   private readonly apiClient: AxiosInstance;
 
   constructor() {
@@ -25,7 +26,14 @@ export class ChatRoomRepository {
   }
 
   async getGroupMessages(roomId: string): Promise<GroupMessage[]> {
-    const response = await this.apiClient.get(`/chatroom/get-group-messages/${roomId}`);
+    const response = await this.apiClient.get(
+      `/chatroom/get-group-messages/${roomId}`
+    );
+    return response.data;
+  }
+
+  async getGroupLastMessage(roomId: string): Promise<GroupMessage> {
+    const response = await this.apiClient.get(`/messages/room-last-message/${roomId}`);
     return response.data;
   }
 }

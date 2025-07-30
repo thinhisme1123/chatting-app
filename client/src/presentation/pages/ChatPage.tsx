@@ -71,16 +71,15 @@ export default function ChatPage() {
   // Image handling states
   const [pastedImages, setPastedImages] = useState<
     Array<{
-      id: string
-      file: File
-      preview: string
-      name: string
-      size: number
+      id: string;
+      file: File;
+      preview: string;
+      name: string;
+      size: number;
     }>
-  >([])
-  const [isDragOver, setIsDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  
+  >([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -151,24 +150,24 @@ export default function ChatPage() {
   };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items
-    if (!items) return
+    const items = e.clipboardData?.items;
+    if (!items) return;
 
     for (let i = 0; i < items.length; i++) {
-      const item = items[i]
+      const item = items[i];
       if (item.type.indexOf("image") !== -1) {
-        e.preventDefault()
-        const file = item.getAsFile()
+        e.preventDefault();
+        const file = item.getAsFile();
         if (file) {
-          await addImageToPreview(file)
+          await addImageToPreview(file);
         }
       }
     }
-  }
+  };
 
   const addImageToPreview = async (file: File) => {
-    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9)
-    const preview = URL.createObjectURL(file)
+    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const preview = URL.createObjectURL(file);
 
     const newImage = {
       id,
@@ -176,82 +175,98 @@ export default function ChatPage() {
       preview,
       name: file.name || `image-${id}.png`,
       size: file.size,
-    }
+    };
 
-    setPastedImages((prev) => [...prev, newImage])
-  }
+    setPastedImages((prev) => [...prev, newImage]);
+  };
 
   const removeImage = (id: string) => {
     setPastedImages((prev) => {
-      const imageToRemove = prev.find((img) => img.id === id)
+      const imageToRemove = prev.find((img) => img.id === id);
       if (imageToRemove) {
-        URL.revokeObjectURL(imageToRemove.preview)
+        URL.revokeObjectURL(imageToRemove.preview);
       }
-      return prev.filter((img) => img.id !== id)
-    })
-  }
+      return prev.filter((img) => img.id !== id);
+    });
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files) return
+    const files = e.target.files;
+    if (!files) return;
 
     for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+      const file = files[i];
       if (file.type.startsWith("image/")) {
-        await addImageToPreview(file)
+        await addImageToPreview(file);
       }
     }
 
     // Reset file input
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+      fileInputRef.current.value = "";
     }
-  }
-
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }
+    e.preventDefault();
+    setIsDragOver(true);
+  };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }
+    e.preventDefault();
+    setIsDragOver(false);
+  };
 
   const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
+    e.preventDefault();
+    setIsDragOver(false);
 
-    const files = e.dataTransfer.files
+    const files = e.dataTransfer.files;
     for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+      const file = files[i];
       if (file.type.startsWith("image/")) {
-        await addImageToPreview(file)
+        await addImageToPreview(file);
       }
     }
-  }
+  };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (
+      Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+    );
+  };
 
-  const updateLastMessageForUser = async (friendId: string) => {
+  const updateLastMessage = async (id: string, isGroup: boolean) => {
     if (!user?.id) return;
+
     try {
-      const message = await chatUseCases.getLastMessage(user.id, friendId);
-      if (message) {
-        setLastMessages((prev) => ({
-          ...prev,
-          [friendId]: {
-            content: message.content || "No messages yet.",
-            timestamp: message.timestamp.toString(),
-          },
-        }));
+      if (isGroup) {
+        const message = await chatRoomUseCases.getGroupLastMessage(id);
+        if (message) {
+          setLastMessages((prev) => ({
+            ...prev,
+            [id]: {
+              content: message.content || "No messages yet.",
+              timestamp: message.timestamp.toString(),
+              senderName: message.senderName, // Add this if you’re using it
+            },
+          }));
+        }
+      } else {
+        const message = await chatUseCases.getLastMessage(user.id, id);
+        if (message) {
+          setLastMessages((prev) => ({
+            ...prev,
+            [id]: {
+              content: message.content || "No messages yet.",
+              timestamp: message.timestamp.toString(),
+            },
+          }));
+        }
       }
     } catch (err) {
       console.error("Error updating last message:", err);
@@ -356,6 +371,7 @@ export default function ChatPage() {
       setFriends(data);
 
       fetchLastMessages(data);
+      fetchLastMessagesForRooms(rooms);
 
       if (Array.isArray(data) && data.length > 0 && !selectedUser) {
         clearNewMessageForUser(data[0].id);
@@ -398,6 +414,47 @@ export default function ChatPage() {
     }
 
     setLastMessages(newMessagesMap);
+  };
+
+  // fetching group last message
+  const fetchLastMessagesForRooms = async (roomList: ChatRoom[]) => {
+    if (!roomList || roomList.length === 0) return;
+    console.log(123);
+
+    const newMap: Record<
+      string,
+      { content: string; timestamp: string; senderName: string }
+    > = {};
+
+    for (const room of roomList) {
+      try {
+        const msg = await chatRoomUseCases.getGroupLastMessage(room.id);
+
+        newMap[room.id] = {
+          content: msg?.content || "No messages yet.",
+          timestamp: msg?.timestamp
+            ? new Date(msg.timestamp).toISOString()
+            : new Date().toISOString(),
+
+          senderName: msg?.senderName,
+        };
+      } catch (err) {
+        console.error(
+          `Error fetching last group message for room ${room.id}`,
+          err
+        );
+        newMap[room.id] = {
+          content: "Error loading message",
+          timestamp: new Date().toISOString(),
+          senderName: "Unknown",
+        };
+      }
+    }
+
+    setLastMessages((prev) => ({
+      ...prev,
+      ...newMap,
+    }));
   };
 
   // Initial setup
@@ -458,11 +515,10 @@ export default function ChatPage() {
 
         if (isInCurrentGroup) {
           setMessages((prev) => [...prev, message]);
-          updateLastMessageForUser(data.roomId);
+          updateLastMessage(data.roomId, true);
         } else {
           setUserHasNewMessage(data.roomId);
-          updateLastMessageForUser(data.roomId);
-
+          updateLastMessage(data.roomId, true);
           try {
             playNotificationSound();
           } catch (err) {
@@ -508,11 +564,10 @@ export default function ChatPage() {
 
       if (isUserInConversation) {
         setMessages((prev) => [...prev, message]);
-        updateLastMessageForUser(data.fromUserId);
+        updateLastMessage(data.fromUserId, false);
       } else {
         setUserHasNewMessage(data.fromUserId);
-        updateLastMessageForUser(data.fromUserId);
-
+        updateLastMessage(data.fromUserId, false);
         try {
           playNotificationSound();
         } catch (error) {
@@ -559,7 +614,7 @@ export default function ChatPage() {
       // Cập nhật danh sách bạn bè UI
       setUsers((prev) => [newFriend, ...prev]);
       setFriends((prev) => [newFriend, ...prev]);
-      updateLastMessageForUser(newFriend.id);
+      updateLastMessage(newFriend.id, false);
 
       // 🛎️ Thêm thông báo vào danh sách notification
       const notification: AceptedFriendRequestNotification & {
@@ -613,12 +668,12 @@ export default function ChatPage() {
         if (isGroup) {
           // Lấy tin nhắn nhóm
           console.log("lay tin nhan nhom");
-          
+
           const groupMessages = await chatRoomUseCases.getGroupMessage(
             selectedUser.id
           );
           console.log(groupMessages);
-          
+
           setMessages(
             groupMessages.map((msg) => ({
               ...msg,
@@ -768,7 +823,6 @@ export default function ChatPage() {
 
   // handle group selection
   const handleGroupSelect = async (group: ChatRoom) => {
-    
     setSelectedUser(group);
     setMessages([]);
     setUsersTyping({});
@@ -887,6 +941,7 @@ export default function ChatPage() {
         roomId: selectedUser.id,
         userId: user.id,
       });
+      updateLastMessage(selectedUser.id, true);
     } else {
       socket.emit("send-message", {
         fromUserId: user.id,
@@ -900,6 +955,7 @@ export default function ChatPage() {
         userId: user.id,
         toUserId: selectedUser.id,
       });
+      updateLastMessage(selectedUser.id, false);
     }
 
     setIsTyping(false);
@@ -907,7 +963,6 @@ export default function ChatPage() {
 
     setNewMessage("");
     setReplyingToMessage(null); // ✅ Clear reply after send
-    updateLastMessageForUser(selectedUser.id);
   };
 
   // Loading state
@@ -1004,6 +1059,7 @@ export default function ChatPage() {
                 lastMessages[item.id]?.content || "No message yet.";
               const lastMsg = truncate(rawMsg);
               const isOnline = !isGroup && onlineUserIds.includes(item.id); // chỉ áp dụng với user
+              console.log(rawMsg);
 
               return (
                 <div
@@ -1051,7 +1107,12 @@ export default function ChatPage() {
                             </span>
                           )}
                         </h3>
-                        <p className="text-xs text-gray-400">{lastMsg}</p>
+                        <p className="text-xs text-gray-400">
+                          {isGroup && lastMessages[item.id]?.senderName
+                            ? `${lastMessages[item.id].senderName}: `
+                            : ""}
+                          {lastMsg}
+                        </p>
                       </div>
 
                       {/* New message badge */}
@@ -1301,69 +1362,75 @@ export default function ChatPage() {
             )}
 
             {/* Input Form */}
-              <form onSubmit={handleSendMessage} className="flex gap-2 p-2">
-                <div
-                  className={`flex-1 relative ${isDragOver ? "ring-2 ring-blue-500 ring-opacity-50" : ""}`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <Input
-                    ref={chatInputBoxRef}
-                    value={newMessage}
-                    onChange={handleInputChange}
-                    onPaste={handlePaste}
-                    placeholder={
-                      replyingToMessage
-                        ? `Trả lời ${replyingToMessage.senderName}...`
-                        : `Nhập tin nhắn gửi ${
-                            "username" in selectedUser ? selectedUser.username : selectedUser?.name || ""
-                          }...`
-                    }
-                    className="pr-10"
-                  />
+            <form onSubmit={handleSendMessage} className="flex gap-2 p-2">
+              <div
+                className={`flex-1 relative ${
+                  isDragOver ? "ring-2 ring-blue-500 ring-opacity-50" : ""
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <Input
+                  ref={chatInputBoxRef}
+                  value={newMessage}
+                  onChange={handleInputChange}
+                  onPaste={handlePaste}
+                  placeholder={
+                    replyingToMessage
+                      ? `Trả lời ${replyingToMessage.senderName}...`
+                      : `Nhập tin nhắn gửi ${
+                          "username" in selectedUser
+                            ? selectedUser.username
+                            : selectedUser?.name || ""
+                        }...`
+                  }
+                  className="pr-10"
+                />
 
-                  {/* File Input Button */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100 rounded-full"
-                  >
-                    <Paperclip className="h-4 w-4 text-gray-500" />
-                  </Button>
-
-                  {/* Hidden File Input */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-
-                  {/* Drag Overlay */}
-                  {isDragOver && (
-                    <div className="absolute inset-0 bg-blue-50 bg-opacity-90 border-2 border-dashed border-blue-300 rounded-md flex items-center justify-center">
-                      <div className="text-center">
-                        <ImageIcon className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-                        <p className="text-sm text-blue-600 font-medium">Thả hình ảnh vào đây</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
+                {/* File Input Button */}
                 <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!newMessage.trim() && pastedImages.length === 0}
-                  className="flex-shrink-0"
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100 rounded-full"
                 >
-                  <Send className="h-4 w-4" />
+                  <Paperclip className="h-4 w-4 text-gray-500" />
                 </Button>
-              </form>
+
+                {/* Hidden File Input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                {/* Drag Overlay */}
+                {isDragOver && (
+                  <div className="absolute inset-0 bg-blue-50 bg-opacity-90 border-2 border-dashed border-blue-300 rounded-md flex items-center justify-center">
+                    <div className="text-center">
+                      <ImageIcon className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+                      <p className="text-sm text-blue-600 font-medium">
+                        Thả hình ảnh vào đây
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                type="submit"
+                size="icon"
+                disabled={!newMessage.trim() && pastedImages.length === 0}
+                className="flex-shrink-0"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
