@@ -1,4 +1,4 @@
-import { FriendRequestNotification } from "@/src/domain/entities/Notification";
+import { FriendRequestNotification } from "@/src/domain/entities/Notifications";
 import { INotificationRepository } from "@/src/domain/interfaces/INotificationRepository";
 import { AxiosInstance } from "axios";
 import { ApiClient } from "../api/ApiClient";

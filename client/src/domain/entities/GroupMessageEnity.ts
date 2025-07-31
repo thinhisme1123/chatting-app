@@ -7,5 +7,11 @@ export interface GroupMessage {
   senderName: string;
   senderAvatar: string;
   content: string;
-  timestamp: string | Date; // nhận từ BE có thể là string
+  timestamp: string | Date; 
+  replyTo?: {
+    id: string;
+    content: string;
+    senderName: string;
+  };
+  edited?: boolean;
 }

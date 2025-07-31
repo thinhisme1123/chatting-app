@@ -1,31 +1,26 @@
-import type { IChatRepository } from "../../domain/interfaces/IChatRepository"
+import { Message } from "@/src/domain/entities/Message";
+import type { IChatRepository } from "../../domain/interfaces/IChatRepository";
 
 export class ChatUseCases {
-  constructor(private chatRepository: IChatRepository) {}
-
-  async getConversations() {
-    return await this.chatRepository.getConversations()
-  }
+  constructor(private readonly chatRepository: IChatRepository) {}
 
   async getMessages(conversationId: string) {
-    return await this.chatRepository.getMessages(conversationId)
+    return await this.chatRepository.getMessages(conversationId);
   }
 
   async getLastMessage(user1Id: string, user2Id: string) {
-    return await this.chatRepository.getLastMessage(user1Id, user2Id)
+    return await this.chatRepository.getLastMessage(user1Id, user2Id);
   }
 
   async sendMessage(conversationId: string, content: string) {
-    return await this.chatRepository.sendMessage(conversationId, content)
-  }
-
-  async createConversation(participantIds: string[], isGroup?: boolean, groupName?: string) {
-    return await this.chatRepository.createConversation(participantIds, isGroup, groupName)
+    return await this.chatRepository.sendMessage(conversationId, content);
   }
 
   async getHistoryMessages(userId: string, selectedUserId: string) {
     return await this.chatRepository.getMessageHistory(userId, selectedUserId);
   }
 
-  
+  async editMessage(id: string, content: string): Promise<Message> {
+    return this.chatRepository.editMessage(id, content);
+  }
 }
