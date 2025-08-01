@@ -1,5 +1,4 @@
 import { type AxiosInstance } from "axios";
-import type { Conversation } from "../../domain/entities/Conversation";
 import type { Message } from "../../domain/entities/Message";
 import type { IChatRepository } from "../../domain/interfaces/IChatRepository";
 import { ApiClient } from "../api/ApiClient";
@@ -9,11 +8,6 @@ export class ChatRepository implements IChatRepository {
 
   constructor() {
     this.apiClient = new ApiClient().instance;
-  }
-
-  async getConversations(): Promise<Conversation[]> {
-    const response = await this.apiClient.get("/conversations");
-    return response.data;
   }
 
   async getMessages(conversationId: string): Promise<Message[]> {
@@ -52,16 +46,12 @@ export class ChatRepository implements IChatRepository {
     return response.data;
   }
 
-  async createConversation(
-    participantIds: string[],
-    isGroup?: boolean,
-    groupName?: string
-  ): Promise<Conversation> {
-    const response = await this.apiClient.post("/conversations", {
-      participantIds,
-      isGroup,
-      groupName,
+  async editMessage(id: string, content: string): Promise<Message> {
+    const res = await fetch(`/messages/edit/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+      headers: { "Content-Type": "application/json" },
     });
-    return response.data;
+    return await res.json();
   }
 }

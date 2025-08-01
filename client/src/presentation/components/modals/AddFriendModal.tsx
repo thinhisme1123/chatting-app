@@ -318,7 +318,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                             <div className="relative flex-shrink-0">
                               <Avatar className="w-12 h-12 sm:w-14 sm:h-14 border-2 sm:border-3 border-white shadow-lg">
                                 <AvatarImage
-                                  src={resultUser.avatar || "/images/user-placeholder.svg"}
+                                  src={resultUser.avatar || "/images/user-placeholder.jpg"}
                                 />
                                 <AvatarFallback
                                   className={`bg-gradient-to-r ${userTheme.gradient} text-white text-base sm:text-lg font-bold`}

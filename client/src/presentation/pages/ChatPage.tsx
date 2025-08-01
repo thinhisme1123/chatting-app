@@ -7,12 +7,12 @@ import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.
 import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { ChatRoom } from "@/src/domain/entities/ChatRoom";
-import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfo";
+import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfor";
 import {
   AceptedFriendRequestNotification,
   AppNotification,
   FriendRequestNotification,
-} from "@/src/domain/entities/Notification";
+} from "@/src/domain/entities/Notifications";
 import { User } from "@/src/domain/entities/User";
 import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository";
 import { ChatRepository } from "@/src/infrastructure/repositories/chat.repository";
@@ -52,6 +52,8 @@ import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
+import { Message } from "@/src/domain/entities/Message";
+import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -82,7 +84,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState("");
+  const [editingMessageContent, setEditingMessageContent] = useState("");
   const [replyingToMessage, setReplyingToMessage] = useState<{
     id: string;
     senderName: string;
@@ -274,8 +276,10 @@ export default function ChatPage() {
   };
 
   const handleEditMessage = (messageId: string, content: string) => {
+    setReplyingToMessage(null);
     setEditingMessageId(messageId);
-    setEditingContent(content);
+    setEditingMessageContent(content);
+    chatInputBoxRef.current?.focus();
   };
 
   const handleReplyToMessage = (
@@ -284,6 +288,8 @@ export default function ChatPage() {
     content: string
   ) => {
     //handle focus message input box
+    setEditingMessageId(null);
+    setEditingMessageContent("");
     setReplyingToMessage({ id: messageId, senderName, content });
     chatInputBoxRef.current?.focus();
   };
@@ -385,6 +391,43 @@ export default function ChatPage() {
     }
   }, [user]);
 
+  // fetching message for group and chat 1-1
+  const fetchChatHistory = async (selectedUser: User | ChatRoom) => {
+    if (!selectedUser || !user) return;
+
+    const isGroup = "members" in selectedUser;
+    setIsLoadingMessage(true);
+
+    try {
+      if (isGroup) {
+        const groupMessages = await chatRoomUseCases.getGroupMessage(
+          selectedUser.id
+        );
+        setMessages(
+          groupMessages.map((msg) => ({
+            ...msg,
+            isOwn: msg.fromUserId === user.id,
+          }))
+        );
+      } else {
+        const messages = await chatUseCases.getHistoryMessages(
+          user.id,
+          selectedUser.id
+        );
+        setMessages(
+          messages.map((msg) => ({
+            ...msg,
+            isOwn: msg.fromUserId === user.id,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("❌ Error fetching chat history:", err);
+    } finally {
+      setIsLoadingMessage(false);
+    }
+  };
+
   // fetching last message
   const fetchLastMessages = async (userList: User[]) => {
     if (!user || !userList || userList.length === 0) return;
@@ -419,7 +462,6 @@ export default function ChatPage() {
   // fetching group last message
   const fetchLastMessagesForRooms = async (roomList: ChatRoom[]) => {
     if (!roomList || roomList.length === 0) return;
-    console.log(123);
 
     const newMap: Record<
       string,
@@ -507,7 +549,6 @@ export default function ChatPage() {
         ...data,
         isOwn,
       };
-      console.log(message);
 
       // 👥 Tin nhắn nhóm
       if (isGroupMessage) {
@@ -660,52 +701,15 @@ export default function ChatPage() {
     if (!selectedUser || !user || !socket) return;
     chatInputBoxRef.current?.focus();
     setReplyingToMessage(null);
+    setEditingMessageId(null);
+    setEditingMessageContent("");
     const isGroup = "members" in selectedUser;
     setIsLoadingMessage(true);
-
-    const fetchHistory = async () => {
-      try {
-        if (isGroup) {
-          // Lấy tin nhắn nhóm
-          console.log("lay tin nhan nhom");
-
-          const groupMessages = await chatRoomUseCases.getGroupMessage(
-            selectedUser.id
-          );
-          console.log(groupMessages);
-
-          setMessages(
-            groupMessages.map((msg) => ({
-              ...msg,
-              isOwn: msg.fromUserId === user.id,
-            }))
-          );
-        } else {
-          // Lấy tin nhắn 1-1
-          const messages = await chatUseCases.getHistoryMessages(
-            user.id,
-            selectedUser.id
-          );
-          setMessages(
-            messages.map((msg) => ({
-              ...msg,
-              isOwn: msg.fromUserId === user.id,
-            }))
-          );
-        }
-      } catch (error) {
-        console.error("❌ Error fetching chat history:", error);
-      } finally {
-        setIsLoadingMessage(false);
-      }
-    };
 
     // Cập nhật tiêu đề của tab
     if (typeof document !== "undefined") {
       document.title = isGroup ? selectedUser.name : selectedUser.username;
     }
-
-    fetchHistory();
 
     // Gửi typing chỉ áp dụng cho 1-1
     const handleTyping = ({
@@ -774,6 +778,36 @@ export default function ChatPage() {
       }
     };
 
+    // 👤 For 1-1 chat
+    const handleSocketEditMessage = (updatedMessage: Message) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === updatedMessage.id
+            ? { ...msg, content: updatedMessage.content, edited: true }
+            : msg
+        )
+      );
+    };
+
+    // 👥 For group chat
+    const handleEditGroupMessage = (updatedMessage: GroupMessage) => {
+      if (
+        selectedUser &&
+        "members" in selectedUser &&
+        selectedUser.id === updatedMessage.roomId
+      ) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === updatedMessage.id
+              ? { ...msg, content: updatedMessage.content, edited: true }
+              : msg
+          )
+        );
+      }
+    };
+
+    socket.on("message-edited", handleSocketEditMessage);
+    socket.on("group-message-edited", handleEditGroupMessage);
     if (!isGroup) {
       socket.on("user-typing", handleTyping);
       socket.on("user-stop-typing", handleStopTyping);
@@ -783,6 +817,8 @@ export default function ChatPage() {
     }
 
     return () => {
+      socket.off("message-edited", handleSocketEditMessage);
+      socket.off("group-message-edited", handleEditGroupMessage);
       if (!isGroup) {
         socket.off("user-typing", handleTyping);
         socket.off("user-stop-typing", handleStopTyping);
@@ -814,6 +850,7 @@ export default function ChatPage() {
   const handleUserSelect = (selected: User) => {
     setSelectedUser(selected);
     setMessages([]);
+    fetchChatHistory(selected);
     setUsersTyping({});
     setIsTyping(false);
     if (typingTimeoutRef.current) {
@@ -825,6 +862,7 @@ export default function ChatPage() {
   const handleGroupSelect = async (group: ChatRoom) => {
     setSelectedUser(group);
     setMessages([]);
+    fetchChatHistory(group);
     setUsersTyping({});
     setIsTyping(false);
     if (typingTimeoutRef.current) {
@@ -834,12 +872,11 @@ export default function ChatPage() {
 
   // Handle input change with typing indicator
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setNewMessage(value);
-
     if (!selectedUser || !user || !socket) return;
-
     const isGroup = "members" in selectedUser;
+    const value = e.target.value;
+
+    setNewMessage(value);
 
     // Emit typing nếu có text và chưa đánh dấu là đang typing
     if (value.length > 0 && !isTyping) {
@@ -909,8 +946,43 @@ export default function ChatPage() {
 
     const isGroup = "members" in selectedUser;
 
+    if (editingMessageId) {
+      if (isGroup) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === editingMessageId
+              ? { ...msg, content: newMessage, edited: true }
+              : msg
+          )
+        );
+        socket.emit("edit-group-message", {
+          messageId: editingMessageId,
+          newContent: newMessage,
+          roomId: selectedUser.id,
+        });
+      } else {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === editingMessageId
+              ? { ...msg, content: newMessage, edited: true }
+              : msg
+          )
+        );
+        socket.emit("edit-message", {
+          messageId: editingMessageId,
+          newContent: newMessage,
+          toUserId: selectedUser.id,
+        });
+      }
+
+      // Clear state after editing
+      setEditingMessageId(null);
+      setEditingMessageContent("");
+      setNewMessage("");
+      return;
+    }
+
     const message = {
-      id: Date.now().toString(),
       senderId: user.id,
       senderName: user.username,
       content: newMessage,
@@ -1059,7 +1131,6 @@ export default function ChatPage() {
                 lastMessages[item.id]?.content || "No message yet.";
               const lastMsg = truncate(rawMsg);
               const isOnline = !isGroup && onlineUserIds.includes(item.id); // chỉ áp dụng với user
-              console.log(rawMsg);
 
               return (
                 <div
@@ -1289,12 +1360,27 @@ export default function ChatPage() {
                                   : "bg-gray-200 text-gray-900 self-start"
                               }`}
                             >
-                              <p className="text-sm leading-snug whitespace-pre-wrap break-words">
+                              <p
+                                className={`text-sm leading-snug whitespace-pre-wrap break-words flex flex-col ${
+                                  message.isOwn ? "text-right" : "text-left"
+                                }`}
+                              >
                                 {message.content}
+
+                                {message.edited && (
+                                  <span
+                                    className={`ml-2 text-[10px] italic ${
+                                      message.isOwn
+                                        ? "text-blue-200"
+                                        : "text-gray-500"
+                                    }`}
+                                  >
+                                    (đã chỉnh sửa)
+                                  </span>
+                                )}
                               </p>
                             </div>
                           </div>
-
                           <MessageOptions
                             messageId={message.id}
                             messageContent={message.content}
@@ -1305,7 +1391,6 @@ export default function ChatPage() {
                             onCopy={handleCopyMessage}
                           />
                         </div>
-
                         <span className="text-xs text-gray-500 mt-1">
                           {new Date(message.timestamp).toLocaleTimeString(
                             "vi-VN",
@@ -1361,6 +1446,33 @@ export default function ChatPage() {
               </div>
             )}
 
+            {/* Edit Preview */}
+            {editingMessageId && (
+              <div className="border-t bg-yellow-50 p-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-1 h-12 bg-yellow-500 rounded-full flex-shrink-0"></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-yellow-600">
+                        Đang sửa tin nhắn
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 truncate">
+                      {editingMessageContent}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingMessageId(null)}
+                    className="h-6 w-6 p-0 hover:bg-gray-200 rounded-full flex-shrink-0"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Input Form */}
             <form onSubmit={handleSendMessage} className="flex gap-2 p-2">
               <div
@@ -1377,7 +1489,9 @@ export default function ChatPage() {
                   onChange={handleInputChange}
                   onPaste={handlePaste}
                   placeholder={
-                    replyingToMessage
+                    editingMessageId
+                      ? `Đang sửa tin nhắn...`
+                      : replyingToMessage
                       ? `Trả lời ${replyingToMessage.senderName}...`
                       : `Nhập tin nhắn gửi ${
                           "username" in selectedUser

@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { NotificationUseCases } from "@/src/application/usecases/notifcation-use-cases.query";
-import { AppNotification } from "@/src/domain/entities/Notification";
+import { AppNotification } from "@/src/domain/entities/Notifications";
 import { User } from "@/src/domain/entities/User";
 import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
 import { NotificationRepository } from "@/src/infrastructure/repositories/notfication.repository";
@@ -264,7 +264,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                         <AvatarImage
                           src={
                             notification.sender.avatar ||
-                            "/images/user-placeholder.svg"
+                            "/images/user-placeholder.jpg"
                           }
                           alt={notification.sender.username}
                         />
@@ -318,7 +318,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                         <AvatarImage
                           src={
                             notification.avatar ||
-                            "/images/user-placeholder.svg"
+                            "/images/user-placeholder.jpg"
                           }
                           alt={notification.username}
                         />
