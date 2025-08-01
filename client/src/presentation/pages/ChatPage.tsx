@@ -52,6 +52,8 @@ import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
+import { Message } from "@/src/domain/entities/Message";
+import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -274,10 +276,10 @@ export default function ChatPage() {
   };
 
   const handleEditMessage = (messageId: string, content: string) => {
+    setReplyingToMessage(null);
     setEditingMessageId(messageId);
     setEditingMessageContent(content);
-    console.log(messageId);
-    console.log(content);
+    chatInputBoxRef.current?.focus();
   };
 
   const handleReplyToMessage = (
@@ -286,6 +288,8 @@ export default function ChatPage() {
     content: string
   ) => {
     //handle focus message input box
+    setEditingMessageId(null);
+    setEditingMessageContent("");
     setReplyingToMessage({ id: messageId, senderName, content });
     chatInputBoxRef.current?.focus();
   };
@@ -545,7 +549,6 @@ export default function ChatPage() {
         ...data,
         isOwn,
       };
-      console.log(message);
 
       // 👥 Tin nhắn nhóm
       if (isGroupMessage) {
@@ -698,6 +701,8 @@ export default function ChatPage() {
     if (!selectedUser || !user || !socket) return;
     chatInputBoxRef.current?.focus();
     setReplyingToMessage(null);
+    setEditingMessageId(null);
+    setEditingMessageContent("");
     const isGroup = "members" in selectedUser;
     setIsLoadingMessage(true);
 
@@ -774,46 +779,34 @@ export default function ChatPage() {
     };
 
     // 👤 For 1-1 chat
-    const handleEditMessage = ({
-      data
-    }: {
-      data :any
-    }) => {
-      console.log(data);
-      
-      // setMessages((prev) =>
-      //   prev.map((msg) =>
-      //     msg.id === messageId ? { ...msg, content: newContent } : msg
-      //   )
-      // );
+    const handleSocketEditMessage = (updatedMessage: Message) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === updatedMessage.id
+            ? { ...msg, content: updatedMessage.content, edited: true }
+            : msg
+        )
+      );
     };
 
     // 👥 For group chat
-    const handleEditGroupMessage = ({
-      messageId,
-      newContent,
-      roomId,
-    }: {
-      messageId: string;
-      newContent: string;
-      roomId: string;
-    }) => {
-      console.log(newContent);
-      
+    const handleEditGroupMessage = (updatedMessage: GroupMessage) => {
       if (
         selectedUser &&
         "members" in selectedUser &&
-        selectedUser.id === roomId
+        selectedUser.id === updatedMessage.roomId
       ) {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === messageId ? { ...msg, content: newContent } : msg
+            msg.id === updatedMessage.id
+              ? { ...msg, content: updatedMessage.content, edited: true }
+              : msg
           )
         );
       }
     };
-    
-    socket.on("message-edited", handleEditMessage);
+
+    socket.on("message-edited", handleSocketEditMessage);
     socket.on("group-message-edited", handleEditGroupMessage);
     if (!isGroup) {
       socket.on("user-typing", handleTyping);
@@ -824,7 +817,7 @@ export default function ChatPage() {
     }
 
     return () => {
-      socket.off("message-edited", handleEditMessage);
+      socket.off("message-edited", handleSocketEditMessage);
       socket.off("group-message-edited", handleEditGroupMessage);
       if (!isGroup) {
         socket.off("user-typing", handleTyping);
@@ -954,14 +947,27 @@ export default function ChatPage() {
     const isGroup = "members" in selectedUser;
 
     if (editingMessageId) {
-
       if (isGroup) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === editingMessageId
+              ? { ...msg, content: newMessage, edited: true }
+              : msg
+          )
+        );
         socket.emit("edit-group-message", {
           messageId: editingMessageId,
           newContent: newMessage,
           roomId: selectedUser.id,
         });
       } else {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === editingMessageId
+              ? { ...msg, content: newMessage, edited: true }
+              : msg
+          )
+        );
         socket.emit("edit-message", {
           messageId: editingMessageId,
           newContent: newMessage,
@@ -977,7 +983,6 @@ export default function ChatPage() {
     }
 
     const message = {
-      id: Date.now().toString(),
       senderId: user.id,
       senderName: user.username,
       content: newMessage,
@@ -1355,12 +1360,27 @@ export default function ChatPage() {
                                   : "bg-gray-200 text-gray-900 self-start"
                               }`}
                             >
-                              <p className="text-sm leading-snug whitespace-pre-wrap break-words">
+                              <p
+                                className={`text-sm leading-snug whitespace-pre-wrap break-words flex flex-col ${
+                                  message.isOwn ? "text-right" : "text-left"
+                                }`}
+                              >
                                 {message.content}
+
+                                {message.edited && (
+                                  <span
+                                    className={`ml-2 text-[10px] italic ${
+                                      message.isOwn
+                                        ? "text-blue-200"
+                                        : "text-gray-500"
+                                    }`}
+                                  >
+                                    (đã chỉnh sửa)
+                                  </span>
+                                )}
                               </p>
                             </div>
                           </div>
-
                           <MessageOptions
                             messageId={message.id}
                             messageContent={message.content}
@@ -1371,7 +1391,6 @@ export default function ChatPage() {
                             onCopy={handleCopyMessage}
                           />
                         </div>
-
                         <span className="text-xs text-gray-500 mt-1">
                           {new Date(message.timestamp).toLocaleTimeString(
                             "vi-VN",
