@@ -7,7 +7,9 @@ import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.
 import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { ChatRoom } from "@/src/domain/entities/ChatRoom";
+import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
 import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfor";
+import { Message } from "@/src/domain/entities/Message";
 import {
   AceptedFriendRequestNotification,
   AppNotification,
@@ -17,6 +19,7 @@ import { User } from "@/src/domain/entities/User";
 import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository";
 import { ChatRepository } from "@/src/infrastructure/repositories/chat.repository";
 import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
+import { callSocket } from "@/src/sockets/callSocket";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import { truncate } from "@/src/utils/truncateText";
 import {
@@ -52,14 +55,17 @@ import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-import { Message } from "@/src/domain/entities/Message";
-import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
+import { useWebRTC } from "@/src/hooks/useWebRTC";
+import { IncomingCallModal } from "../components/call/IncomingCallModal";
+import { socket as globalSocket } from "../../sockets/baseSocket";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | ChatRoom | null>(
     null
   );
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const { user, logout } = useAuth();
@@ -136,11 +142,36 @@ export default function ChatPage() {
     return bTime - aTime;
   });
 
+  // calling section variables
+  const { localStream, createPeer, peerRef } = useWebRTC({
+    localUserId: user?.id as string,
+    remoteUserId: selectedUser?.id as string,
+    onRemoteStream: (stream: MediaStream) => {
+      // gắn stream vào video element hoặc state
+      setRemoteStream(stream);
+    },
+  });
+  const [incomingCall, setIncomingCall] = useState<{
+    from: User;
+    offer: RTCSessionDescriptionInit;
+    callType: "audio" | "video";
+  } | null>(null);
+
   // Check if we're in browser environment
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
+    callSocket.onIncomingCall((data: any) => {
+      console.log("📞 Incoming call received:", data);
+      setIncomingCall(data);
+      
+    });
+
+    return () => {
+      // Always clean up to avoid duplicate listeners
+      globalSocket.off("call:incoming");
+    };
   }, []);
 
   const setUserHasNewMessage = (id: string) => {
@@ -320,35 +351,70 @@ export default function ChatPage() {
     setReplyingToMessage(null);
   };
 
+  // handle call section
+  const initiateCall = async (callType: "audio" | "video") => {
+    if (!selectedUser?.id) return;
+    console.log(123);
+
+    const peer = await createPeer(callType);
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+
+    callSocket.callUser({
+      to: selectedUser.id,
+      from: user,
+      offer,
+      callType,
+    });
+  };
+
+  const handleAcceptCall = async () => {
+    if (!incomingCall) return;
+
+    const peer = await createPeer(incomingCall.callType);
+    await peer.setRemoteDescription(
+      new RTCSessionDescription(incomingCall.offer)
+    );
+
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+
+    callSocket.answerCall({
+      to: incomingCall.from.id,
+      answer,
+    });
+
+    setIncomingCall(null);
+  };
+
+  const handleRejectCall = () => {
+    callSocket.rejectCall({ to: incomingCall?.from.id });
+    setIncomingCall(null);
+  };
+
   // Socket initialization
   useEffect(() => {
     if (!isClient) return;
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL;
-    if (!API_URL) {
-      setError("API URL is not configured");
-      return;
-    }
+    if (!globalSocket.connected) globalSocket.connect();
 
     try {
-      const newSocket = io(API_URL);
-
-      newSocket.on("connect", () => {
-        setSocket(newSocket);
+      globalSocket.on("connect", () => {
+        setSocket(globalSocket);
       });
 
-      newSocket.on("online-users", (userIds: string[]) => {
+      globalSocket.on("online-users", (userIds: string[]) => {
         setOnlineUserIds(userIds);
       });
 
-      newSocket.on("connect_error", (error) => {
+      globalSocket.on("connect_error", (error) => {
         console.error("Socket connection error:", error);
         setError("Failed to connect to chat server");
       });
 
       return () => {
-        newSocket.disconnect();
-        newSocket.off("online-users");
+        globalSocket.disconnect();
+        globalSocket.off("online-users");
       };
     } catch (error) {
       console.error("Socket initialization error:", error);
@@ -699,6 +765,9 @@ export default function ChatPage() {
   // Chat history and typing handlers
   useEffect(() => {
     if (!selectedUser || !user || !socket) return;
+    setTypingUserName(null);
+    setAvatarGroupUserTyping(null);
+
     chatInputBoxRef.current?.focus();
     setReplyingToMessage(null);
     setEditingMessageId(null);
@@ -1279,10 +1348,18 @@ export default function ChatPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => initiateCall("audio")}
+                >
                   <Phone className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => initiateCall("video")}
+                >
                   <Video className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="sm">
@@ -1302,9 +1379,9 @@ export default function ChatPage() {
                     </div>
                   </div>
                 ) : (
-                  messages.map((message) => (
+                  messages.map((message, index) => (
                     <div
-                      key={message.id}
+                      key={index}
                       className={`flex gap-3 ${
                         message.isOwn ? "flex-row-reverse" : ""
                       }`}
@@ -1328,59 +1405,60 @@ export default function ChatPage() {
                           message.isOwn ? "items-end" : "items-start"
                         }`}
                       >
+                        {/* Reply Preview */}
+                        {message.replyTo && (
+                          <div
+                            className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 ${
+                              message.isOwn
+                                ? "border-blue-500"
+                                : "border-gray-400"
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-700 leading-tight">
+                              {message.replyTo.senderName}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {message.replyTo.content}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Message and Options aligned horizontally */}
                         <div
-                          className={`message-content flex ${
-                            message.isOwn ? "flex-row-reverse" : ""
+                          className={`message-content flex items-center gap-1 ${
+                            message.isOwn ? "flex-row-reverse" : "flex-row"
                           }`}
                         >
-                          <div className="flex flex-col gap-1">
-                            {/* Reply Preview */}
-                            {message.replyTo && (
-                              <div
-                                className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 ${
-                                  message.isOwn
-                                    ? "border-blue-500"
-                                    : "border-gray-400"
-                                }`}
-                              >
-                                <p className="text-sm font-semibold text-gray-700 leading-tight">
-                                  {message.replyTo.senderName}
-                                </p>
-                                <p className="text-xs text-gray-500 truncate">
-                                  {message.replyTo.content}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Actual Message Bubble */}
-                            <div
-                              className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
-                                message.isOwn
-                                  ? "bg-blue-600 text-white self-end"
-                                  : "bg-gray-200 text-gray-900 self-start"
+                          {/* Message Bubble */}
+                          <div
+                            className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
+                              message.isOwn
+                                ? "bg-blue-600 text-white self-end"
+                                : "bg-gray-200 text-gray-900 self-start"
+                            }`}
+                          >
+                            <p
+                              className={`text-sm leading-snug whitespace-pre-wrap break-words flex flex-col ${
+                                message.isOwn ? "text-right" : "text-left"
                               }`}
                             >
-                              <p
-                                className={`text-sm leading-snug whitespace-pre-wrap break-words flex flex-col ${
-                                  message.isOwn ? "text-right" : "text-left"
-                                }`}
-                              >
-                                {message.content}
+                              {message.content}
 
-                                {message.edited && (
-                                  <span
-                                    className={`ml-2 text-[10px] italic ${
-                                      message.isOwn
-                                        ? "text-blue-200"
-                                        : "text-gray-500"
-                                    }`}
-                                  >
-                                    (đã chỉnh sửa)
-                                  </span>
-                                )}
-                              </p>
-                            </div>
+                              {message.edited && (
+                                <span
+                                  className={`ml-2 text-[10px] italic ${
+                                    message.isOwn
+                                      ? "text-blue-200"
+                                      : "text-gray-500"
+                                  }`}
+                                >
+                                  (đã chỉnh sửa)
+                                </span>
+                              )}
+                            </p>
                           </div>
+
+                          {/* Options right beside the message bubble only */}
                           <MessageOptions
                             messageId={message.id}
                             messageContent={message.content}
@@ -1391,15 +1469,6 @@ export default function ChatPage() {
                             onCopy={handleCopyMessage}
                           />
                         </div>
-                        <span className="text-xs text-gray-500 mt-1">
-                          {new Date(message.timestamp).toLocaleTimeString(
-                            "vi-VN",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }
-                          )}
-                        </span>
                       </div>
                     </div>
                   ))
@@ -1568,11 +1637,20 @@ export default function ChatPage() {
         friendUseCases={friendUseCases}
         currentUserId={user?.id}
       />
+      {/* create group chat modal */}
       <CreateGroupModal
         isOpen={showCreateModal}
         onClose={() => setIsCreateGroupModalOpen(false)}
         friends={friends}
         socket={socket}
+      />
+      {/* in comming call dialog */}
+      <IncomingCallModal
+        open={!!incomingCall}
+        caller={incomingCall?.from ?? null}
+        callType={incomingCall?.callType ?? "audio"}
+        onAccept={handleAcceptCall}
+        onReject={handleRejectCall}
       />
     </div>
   );
