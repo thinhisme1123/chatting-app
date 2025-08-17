@@ -58,13 +58,16 @@ import { useAuth } from "../contexts/AuthContext";
 import { useWebRTC } from "@/src/hooks/useWebRTC";
 import { IncomingCallModal } from "../components/call/IncomingCallModal";
 import { socket as globalSocket } from "../../sockets/baseSocket";
+import { playRingingCall } from "@/src/utils/playRingingCall";
+import { OutgoingCallModal } from "../components/call/OutgoingCallModal";
+import { ActiveCallModal } from "../components/call/ActiveCallModal";
+import { ThemeToggle } from "../components/parts/ThemeToggle";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | ChatRoom | null>(
     null
   );
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -143,14 +146,23 @@ export default function ChatPage() {
   });
 
   // calling section variables
-  const { localStream, createPeer, peerRef } = useWebRTC({
+  const [isOutgoingModalOpen, setOutgoingModalOpen] = useState(false);
+  const [isActiveCallModalOpen, setActiveCallModalOpen] = useState(false);
+  const [role, setRole] = useState<"caller" | "callee" | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [callStatus, setCallStatus] = useState<"ringing" | "rejected">(
+    "ringing"
+  );
+  const { localStream, startCall, initPeer, peerRef } = useWebRTC({
+    fromUser: user as User,
     localUserId: user?.id as string,
     remoteUserId: selectedUser?.id as string,
     onRemoteStream: (stream: MediaStream) => {
-      // gắn stream vào video element hoặc state
       setRemoteStream(stream);
     },
+    role: role ?? "caller", // fallback but better to always set
   });
+
   const [incomingCall, setIncomingCall] = useState<{
     from: User;
     offer: RTCSessionDescriptionInit;
@@ -163,13 +175,15 @@ export default function ChatPage() {
   useEffect(() => {
     setIsClient(true);
     callSocket.onIncomingCall((data: any) => {
-      console.log("📞 Incoming call received:", data);
+      console.log(data);
+
+      setRole("callee");
       setIncomingCall(data);
-      
+      playRingingCall();
     });
 
     return () => {
-      // Always clean up to avoid duplicate listeners
+      // Always clean up to avoid duplicate listenersPhone
       globalSocket.off("call:incoming");
     };
   }, []);
@@ -352,32 +366,25 @@ export default function ChatPage() {
   };
 
   // handle call section
-  const initiateCall = async (callType: "audio" | "video") => {
+  const initiateCall = (callType: "audio" | "video") => {
     if (!selectedUser?.id) return;
-    console.log(123);
-
-    const peer = await createPeer(callType);
-    const offer = await peer.createOffer();
-    await peer.setLocalDescription(offer);
-
-    callSocket.callUser({
-      to: selectedUser.id,
-      from: user,
-      offer,
-      callType,
-    });
+    setRole("caller");
+    setOutgoingModalOpen(true);
+    startCall(callType); // Hook handles createPeer + offer sending
   };
 
   const handleAcceptCall = async () => {
     if (!incomingCall) return;
 
-    const peer = await createPeer(incomingCall.callType);
-    await peer.setRemoteDescription(
+    setRole("callee");
+
+    const pc = await initPeer(incomingCall.callType);
+    await pc.setRemoteDescription(
       new RTCSessionDescription(incomingCall.offer)
     );
 
-    const answer = await peer.createAnswer();
-    await peer.setLocalDescription(answer);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
     callSocket.answerCall({
       to: incomingCall.from.id,
@@ -385,6 +392,17 @@ export default function ChatPage() {
     });
 
     setIncomingCall(null);
+    setOutgoingModalOpen(false);
+    // ✅ open active call modal for callee too
+    setActiveCallModalOpen(true);
+  };
+
+  // Caller cancels before connection
+  const handleCancelCall = () => {
+    if (selectedUser?.id) {
+      callSocket.cancelCall({ to: selectedUser.id });
+    }
+    setOutgoingModalOpen(false);
   };
 
   const handleRejectCall = () => {
@@ -748,6 +766,52 @@ export default function ChatPage() {
       }
     };
 
+    const handleAnswered = async (data: {
+      to: string;
+      answer: RTCSessionDescriptionInit;
+    }) => {
+      if (data.to !== user.id) return;
+      if (!peerRef.current) return;
+
+      // Prevent running if already stable
+      if (peerRef.current.signalingState !== "have-local-offer") {
+        console.warn(
+          "[WebRTC] Ignored duplicate answer, state:",
+          peerRef.current.signalingState
+        );
+        return;
+      }
+
+      try {
+        await peerRef.current.setRemoteDescription(
+          new RTCSessionDescription(data.answer)
+        );
+        console.log("[WebRTC] Remote description set successfully.");
+      } catch (err) {
+        console.error("[WebRTC] Failed to set remote description", err);
+      }
+    };
+
+    callSocket.onAnswered(handleAnswered);
+
+    // handle call socket for rejected cal person who call
+    callSocket.onRejected((data: any) => {
+      if (data.from.id === selectedUser?.id) {
+        setCallStatus("rejected");
+
+        // Auto-close after 3s
+        setTimeout(() => {
+          setOutgoingModalOpen(false);
+          setCallStatus("ringing"); // reset for next call
+        }, 3000);
+      }
+    });
+
+    // hanlde close incomingcallModal for user who is called
+    callSocket.onCancelled((data: any) => {
+      setIncomingCall(null);
+    });
+
     // Lắng nghe các sự kiện từ server
     socket.on("receive-message", handleReceiveMessage);
     socket.on("friend-request-notification", handleNewFriendRequest);
@@ -759,6 +823,9 @@ export default function ChatPage() {
       socket.off("friend-request-notification", handleNewFriendRequest);
       socket.off("friend-request-accepted", handleFriendAccepted);
       socket.off("new-group-notification", handleGroupCreated);
+      socket.off("call:rejected");
+      socket.off("call:cancelled");
+      socket.off("call:answered", handleAnswered);
     };
   }, [user?.id, selectedUser, socket]);
 
@@ -1305,11 +1372,14 @@ export default function ChatPage() {
           ${!selectedUser && isMobile ? "hidden" : "flex"}
         `}
       >
-        <NotificationBar
-          newNotfications={notification}
-          onSelectUser={handleUserSelect}
-          onFriendAccepted={fetchUsers}
-        />
+        <div className="flex justify-end">
+          <ThemeToggle />
+          <NotificationBar
+            newNotfications={notification}
+            onSelectUser={handleUserSelect}
+            onFriendAccepted={fetchUsers}
+          />
+        </div>
         {selectedUser ? (
           <>
             {/* Chat Header */}
@@ -1629,7 +1699,17 @@ export default function ChatPage() {
           </div>
         )}
       </div>
-
+      {/* active call modal */}
+      <ActiveCallModal
+        open={isActiveCallModalOpen}
+        onEnd={() => {
+          callSocket.endCall({ to: selectedUser?.id });
+          setActiveCallModalOpen(false);
+        }}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        callType={incomingCall?.callType ?? "audio"}
+      />
       {/* Add Friend Modal Component */}
       <AddFriendModal
         isOpen={isAddFriendModalOpen}
@@ -1651,6 +1731,20 @@ export default function ChatPage() {
         callType={incomingCall?.callType ?? "audio"}
         onAccept={handleAcceptCall}
         onReject={handleRejectCall}
+      />
+      {/* out going call modal */}
+      <OutgoingCallModal
+        open={isOutgoingModalOpen}
+        onCancel={() => {
+          console.log("cancel");
+
+          callSocket.cancelCall({ to: selectedUser?.id, from: user?.id });
+          setOutgoingModalOpen(false);
+          setIncomingCall(null);
+        }}
+        callee={selectedUser as User}
+        callType={incomingCall?.callType ?? "audio"}
+        status={callStatus}
       />
     </div>
   );

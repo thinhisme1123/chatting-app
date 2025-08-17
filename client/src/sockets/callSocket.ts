@@ -11,7 +11,7 @@ export const callSocket = {
   sendIceCandidate: ({ to, candidate }: any) =>
     socket.emit("call:ice-candidate", { to, candidate }),
 
-  cancelCall: ({ to }: any) => socket.emit("call:cancel", { to }),
+  cancelCall: ({ to, from }: any) => socket.emit("call:cancel", { to, from }),
 
   rejectCall: ({ to }: any) => socket.emit("call:reject", { to }),
 
