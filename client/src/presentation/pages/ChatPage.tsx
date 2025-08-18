@@ -62,6 +62,8 @@ import { playRingingCall } from "@/src/utils/playRingingCall";
 import { OutgoingCallModal } from "../components/call/OutgoingCallModal";
 import { ActiveCallModal } from "../components/call/ActiveCallModal";
 import { ThemeToggle } from "../components/parts/ThemeToggle";
+import { AvatarFallback } from "@radix-ui/react-avatar";
+import { LanguageSelector } from "../components/parts/LanguageSelector";
 
 export default function ChatPage() {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -1214,7 +1216,7 @@ export default function ChatPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="hover:bg-gray-100 transition-colors"
+                  className="hover:bg-muted transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -1227,7 +1229,7 @@ export default function ChatPage() {
                   onClick={() => {
                     setTimeout(() => setIsAddFriendModalOpen(true), 0);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer rounded-md"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-muted transition-colors cursor-pointer rounded-md"
                 >
                   <UserPlus className="h-4 w-4 text-blue-600" />
                   <span>Gửi lời mời kết bạn</span>
@@ -1236,7 +1238,7 @@ export default function ChatPage() {
                   onClick={() => {
                     setTimeout(() => setIsCreateGroupModalOpen(true), 0);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer rounded-md"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-muted transition-colors cursor-pointer rounded-md"
                 >
                   <Users className="h-4 w-4 text-green-600" />
                   <span>Tạo nhóm chat</span>
@@ -1280,23 +1282,28 @@ export default function ChatPage() {
                     }
                     clearNewMessageForUser(item.id);
                   }}
-                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                     selectedUser?.id === item.id
-                      ? "bg-blue-50 border border-blue-200"
-                      : "hover:bg-gray-50"
+                      ? "bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 shadow-sm"
+                      : "hover:bg-accent dark:hover:bg-accent/80 hover:shadow-sm"
                   }`}
                 >
                   {/* Avatar */}
                   <div className="relative">
-                    <Avatar>
-                      <AvatarImage src={avatar} />
+                    <Avatar className="w-12 h-12 border-2 border-background shadow-sm">
+                      <AvatarImage src={avatar || "/placeholder.svg"} />
+                      <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
+                        {displayName?.charAt(0)?.toUpperCase() || "?"}
+                      </AvatarFallback>
                     </Avatar>
 
                     {/* Online dot nếu là user */}
                     {!isGroup && (
                       <div
-                        className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-                          isOnline ? "bg-green-500" : "bg-gray-300"
+                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background shadow-sm transition-colors ${
+                          isOnline
+                            ? "bg-green-500 dark:bg-green-400"
+                            : "bg-muted-foreground/40 dark:bg-muted-foreground/30"
                         }`}
                       />
                     )}
@@ -1304,17 +1311,17 @@ export default function ChatPage() {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between">
-                      <div>
-                        <h3 className="font-medium truncate flex items-center gap-1">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate flex items-center gap-2 text-foreground">
                           {displayName}
                           {isGroup && (
-                            <span className="ml-1 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">
+                            <span className="text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
                               Nhóm
                             </span>
                           )}
                         </h3>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-sm text-muted-foreground truncate mt-0.5">
                           {isGroup && lastMessages[item.id]?.senderName
                             ? `${lastMessages[item.id].senderName}: `
                             : ""}
@@ -1323,13 +1330,14 @@ export default function ChatPage() {
                       </div>
 
                       {/* New message badge */}
-                      <div>
-                        {hasNew && (
-                          <Badge variant="destructive" className="text-xs">
-                            Mới
-                          </Badge>
-                        )}
-                      </div>
+                      {hasNew && (
+                        <Badge
+                          variant="destructive"
+                          className="text-xs ml-2 bg-red-500 dark:bg-red-600 text-white border-0 shadow-sm animate-pulse"
+                        >
+                          Mới
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1373,6 +1381,7 @@ export default function ChatPage() {
         `}
       >
         <div className="flex justify-end">
+          <LanguageSelector/>
           <ThemeToggle />
           <NotificationBar
             newNotfications={notification}
@@ -1484,7 +1493,7 @@ export default function ChatPage() {
                                 : "border-gray-400"
                             }`}
                           >
-                            <p className="text-sm font-semibold text-gray-700 leading-tight">
+                            <p className="text-sm font-semibold text-gray-700 leading-tight ">
                               {message.replyTo.senderName}
                             </p>
                             <p className="text-xs text-gray-500 truncate">
@@ -1503,12 +1512,12 @@ export default function ChatPage() {
                           <div
                             className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
                               message.isOwn
-                                ? "bg-blue-600 text-white self-end"
-                                : "bg-gray-200 text-gray-900 self-start"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-foreground"
                             }`}
                           >
                             <p
-                              className={`text-sm leading-snug whitespace-pre-wrap break-words flex flex-col ${
+                              className={`text-sm break-words whitespace-pre-wrap flex flex-col ${
                                 message.isOwn ? "text-right" : "text-left"
                               }`}
                             >
@@ -1539,6 +1548,18 @@ export default function ChatPage() {
                             onCopy={handleCopyMessage}
                           />
                         </div>
+                        <p className="text-sm text-foreground">
+                          {new Date(message.timestamp)
+                            .toLocaleString("en-GB", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true, // for AM/PM
+                            })
+                            .replace(",", " |")}
+                        </p>
                       </div>
                     </div>
                   ))

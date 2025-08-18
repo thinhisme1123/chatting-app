@@ -5,6 +5,7 @@ import type React from "react";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 import { ThemeProvider } from "@/src/presentation/contexts/ThemeContext";
+import { LanguageProvider } from "@/src/presentation/contexts/LanguageContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,10 +26,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <ThemeProvider>
-          <AuthProvider>
-            <Toaster position="top-right" reverseOrder={false} />
-            {children}
-          </AuthProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <Toaster position="top-right" reverseOrder={false} />
+              {children}
+            </AuthProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>
