@@ -5,6 +5,7 @@ import { User as UserModel } from "@/src/domain/entities/User";
 import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
 import { useAuth } from "@/src/presentation/contexts/AuthContext";
 import {
+  ArrowLeft,
   Calendar,
   Camera,
   Mail,
@@ -14,6 +15,7 @@ import {
   User,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -24,6 +26,7 @@ const Profile: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const authUseCases = new AuthUseCases(new AuthRepository());
   const [user, setUser] = useState<UserModel | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -85,22 +88,28 @@ const Profile: React.FC = () => {
     formData.append("userId", user.id);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/upload-avatar`, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/user/upload-avatar`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
       if (!response.ok) throw new Error("Upload failed");
 
       const data = await response.json();
       const imageUrl = data.imageUrl;
-      toast.success("Cập nhật ảnh đại diện thành công!")
-      setPreviewImage(null); 
-      setUser({ ...user, avatar: imageUrl }); 
-      localStorage.setItem("user", JSON.stringify({ ...user, avatar: imageUrl }));
+      toast.success("Cập nhật ảnh đại diện thành công!");
+      setPreviewImage(null);
+      setUser({ ...user, avatar: imageUrl });
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ ...user, avatar: imageUrl })
+      );
       fileInputRef.current.value = "";
     } catch (err) {
-       toast.error("Cập nhật ảnh đại diện thất bại!")
+      toast.error("Cập nhật ảnh đại diện thất bại!");
       console.error("Image upload failed:", err);
     } finally {
       setIsUploading(false);
@@ -123,6 +132,15 @@ const Profile: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      <div className="back-navigator p-4">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center text-sm text-blue-600 hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Quay lại
+        </button>
+      </div>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}

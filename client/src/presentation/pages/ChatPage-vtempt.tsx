@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import { ConversationList } from "../components/chat/ConversationList"
 import { ChatWindow } from "../components/chat/ChatWindow"
 import { useAuth } from "../contexts/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -29,7 +28,6 @@ export const ChatPage: React.FC = () => {
 
       {/* Main Chat Interface */}
       <div className="flex-1 flex overflow-hidden">
-        <ConversationList />
         <ChatWindow />
       </div>
     </div>

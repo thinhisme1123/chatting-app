@@ -1,10 +1,11 @@
-import type React from "react";
+import { AuthProvider } from "@/src/presentation/contexts/AuthContext";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
-import { AuthProvider } from "@/src/presentation/contexts/AuthContext";
-import { ChatProvider } from "@/src/presentation/contexts/ChatContext";
+import type React from "react";
 import { Toaster } from "react-hot-toast";
+import "./globals.css";
+import { ThemeProvider } from "@/src/presentation/contexts/ThemeContext";
+import { LanguageProvider } from "@/src/presentation/contexts/LanguageContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,12 +25,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          <ChatProvider>
-            <Toaster position="top-right" reverseOrder={false} />
-            {children}
-          </ChatProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <Toaster position="top-right" reverseOrder={false} />
+              {children}
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -61,7 +61,7 @@ export const MessageOptions: React.FC<MessageOptionsProps> = ({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-gray-200"
+          className="h-6 w-6 p-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-muted"
         >
           <MoreVertical className="h-3 w-3" />
         </Button>

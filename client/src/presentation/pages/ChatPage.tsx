@@ -7,7 +7,9 @@ import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.
 import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { ChatRoom } from "@/src/domain/entities/ChatRoom";
+import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
 import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfor";
+import { Message } from "@/src/domain/entities/Message";
 import {
   AceptedFriendRequestNotification,
   AppNotification,
@@ -17,6 +19,7 @@ import { User } from "@/src/domain/entities/User";
 import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository";
 import { ChatRepository } from "@/src/infrastructure/repositories/chat.repository";
 import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
+import { callSocket } from "@/src/sockets/callSocket";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
 import { truncate } from "@/src/utils/truncateText";
 import {
@@ -52,14 +55,24 @@ import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { CreateGroupModal } from "../components/modals/CreateGroupModal";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-import { Message } from "@/src/domain/entities/Message";
-import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
+import { useWebRTC } from "@/src/hooks/useWebRTC";
+import { IncomingCallModal } from "../components/call/IncomingCallModal";
+import { socket as globalSocket } from "../../sockets/baseSocket";
+import { playRingingCall } from "@/src/utils/playRingingCall";
+import { OutgoingCallModal } from "../components/call/OutgoingCallModal";
+import { ActiveCallModal } from "../components/call/ActiveCallModal";
+import { ThemeToggle } from "../components/parts/ThemeToggle";
+import { AvatarFallback } from "@radix-ui/react-avatar";
+import { LanguageSelector } from "../components/parts/LanguageSelector";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export default function ChatPage() {
+  const {t} = useLanguage()
   const [socket, setSocket] = useState<Socket | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | ChatRoom | null>(
     null
   );
+
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const { user, logout } = useAuth();
@@ -136,11 +149,47 @@ export default function ChatPage() {
     return bTime - aTime;
   });
 
+  // calling section variables
+  const [isOutgoingModalOpen, setOutgoingModalOpen] = useState(false);
+  const [isActiveCallModalOpen, setActiveCallModalOpen] = useState(false);
+  const [role, setRole] = useState<"caller" | "callee" | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [callStatus, setCallStatus] = useState<"ringing" | "rejected">(
+    "ringing"
+  );
+  const { localStream, startCall, initPeer, peerRef } = useWebRTC({
+    fromUser: user as User,
+    localUserId: user?.id as string,
+    remoteUserId: selectedUser?.id as string,
+    onRemoteStream: (stream: MediaStream) => {
+      setRemoteStream(stream);
+    },
+    role: role ?? "caller", // fallback but better to always set
+  });
+
+  const [incomingCall, setIncomingCall] = useState<{
+    from: User;
+    offer: RTCSessionDescriptionInit;
+    callType: "audio" | "video";
+  } | null>(null);
+
   // Check if we're in browser environment
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
+    callSocket.onIncomingCall((data: any) => {
+      console.log(data);
+
+      setRole("callee");
+      setIncomingCall(data);
+      playRingingCall();
+    });
+
+    return () => {
+      // Always clean up to avoid duplicate listenersPhone
+      globalSocket.off("call:incoming");
+    };
   }, []);
 
   const setUserHasNewMessage = (id: string) => {
@@ -320,35 +369,74 @@ export default function ChatPage() {
     setReplyingToMessage(null);
   };
 
+  // handle call section
+  const initiateCall = (callType: "audio" | "video") => {
+    if (!selectedUser?.id) return;
+    setRole("caller");
+    setOutgoingModalOpen(true);
+    startCall(callType); // Hook handles createPeer + offer sending
+  };
+
+  const handleAcceptCall = async () => {
+    if (!incomingCall) return;
+
+    setRole("callee");
+
+    const pc = await initPeer(incomingCall.callType);
+    await pc.setRemoteDescription(
+      new RTCSessionDescription(incomingCall.offer)
+    );
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    callSocket.answerCall({
+      to: incomingCall.from.id,
+      answer,
+    });
+
+    setIncomingCall(null);
+    setOutgoingModalOpen(false);
+    // ✅ open active call modal for callee too
+    setActiveCallModalOpen(true);
+  };
+
+  // Caller cancels before connection
+  const handleCancelCall = () => {
+    if (selectedUser?.id) {
+      callSocket.cancelCall({ to: selectedUser.id });
+    }
+    setOutgoingModalOpen(false);
+  };
+
+  const handleRejectCall = () => {
+    callSocket.rejectCall({ to: incomingCall?.from.id });
+    setIncomingCall(null);
+  };
+
   // Socket initialization
   useEffect(() => {
     if (!isClient) return;
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL;
-    if (!API_URL) {
-      setError("API URL is not configured");
-      return;
-    }
+    if (!globalSocket.connected) globalSocket.connect();
 
     try {
-      const newSocket = io(API_URL);
-
-      newSocket.on("connect", () => {
-        setSocket(newSocket);
+      globalSocket.on("connect", () => {
+        setSocket(globalSocket);
       });
 
-      newSocket.on("online-users", (userIds: string[]) => {
+      globalSocket.on("online-users", (userIds: string[]) => {
         setOnlineUserIds(userIds);
       });
 
-      newSocket.on("connect_error", (error) => {
+      globalSocket.on("connect_error", (error) => {
         console.error("Socket connection error:", error);
         setError("Failed to connect to chat server");
       });
 
       return () => {
-        newSocket.disconnect();
-        newSocket.off("online-users");
+        globalSocket.disconnect();
+        globalSocket.off("online-users");
       };
     } catch (error) {
       console.error("Socket initialization error:", error);
@@ -682,6 +770,52 @@ export default function ChatPage() {
       }
     };
 
+    const handleAnswered = async (data: {
+      to: string;
+      answer: RTCSessionDescriptionInit;
+    }) => {
+      if (data.to !== user.id) return;
+      if (!peerRef.current) return;
+
+      // Prevent running if already stable
+      if (peerRef.current.signalingState !== "have-local-offer") {
+        console.warn(
+          "[WebRTC] Ignored duplicate answer, state:",
+          peerRef.current.signalingState
+        );
+        return;
+      }
+
+      try {
+        await peerRef.current.setRemoteDescription(
+          new RTCSessionDescription(data.answer)
+        );
+        console.log("[WebRTC] Remote description set successfully.");
+      } catch (err) {
+        console.error("[WebRTC] Failed to set remote description", err);
+      }
+    };
+
+    callSocket.onAnswered(handleAnswered);
+
+    // handle call socket for rejected cal person who call
+    callSocket.onRejected((data: any) => {
+      if (data.from.id === selectedUser?.id) {
+        setCallStatus("rejected");
+
+        // Auto-close after 3s
+        setTimeout(() => {
+          setOutgoingModalOpen(false);
+          setCallStatus("ringing"); // reset for next call
+        }, 3000);
+      }
+    });
+
+    // hanlde close incomingcallModal for user who is called
+    callSocket.onCancelled((data: any) => {
+      setIncomingCall(null);
+    });
+
     // Lắng nghe các sự kiện từ server
     socket.on("receive-message", handleReceiveMessage);
     socket.on("friend-request-notification", handleNewFriendRequest);
@@ -693,12 +827,18 @@ export default function ChatPage() {
       socket.off("friend-request-notification", handleNewFriendRequest);
       socket.off("friend-request-accepted", handleFriendAccepted);
       socket.off("new-group-notification", handleGroupCreated);
+      socket.off("call:rejected");
+      socket.off("call:cancelled");
+      socket.off("call:answered", handleAnswered);
     };
   }, [user?.id, selectedUser, socket]);
 
   // Chat history and typing handlers
   useEffect(() => {
     if (!selectedUser || !user || !socket) return;
+    setTypingUserName(null);
+    setAvatarGroupUserTyping(null);
+
     chatInputBoxRef.current?.focus();
     setReplyingToMessage(null);
     setEditingMessageId(null);
@@ -1072,13 +1212,13 @@ export default function ChatPage() {
       >
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Tin nhắn</h2>
+            <h2 className="text-xl font-semibold">{t("chat.messages")}</h2>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="hover:bg-gray-100 transition-colors"
+                  className="hover:bg-muted transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -1091,19 +1231,19 @@ export default function ChatPage() {
                   onClick={() => {
                     setTimeout(() => setIsAddFriendModalOpen(true), 0);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer rounded-md"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-muted transition-colors cursor-pointer rounded-md"
                 >
                   <UserPlus className="h-4 w-4 text-blue-600" />
-                  <span>Gửi lời mời kết bạn</span>
+                  <span>{t("friends.addFriend")}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     setTimeout(() => setIsCreateGroupModalOpen(true), 0);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer rounded-md"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-muted transition-colors cursor-pointer rounded-md"
                 >
                   <Users className="h-4 w-4 text-green-600" />
-                  <span>Tạo nhóm chat</span>
+                  <span>{t("chat.createGroup")}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1112,7 +1252,7 @@ export default function ChatPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Tìm kiếm cuộc trò chuyện..."
+              placeholder={t("chat.searchConversations")}
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -1144,23 +1284,28 @@ export default function ChatPage() {
                     }
                     clearNewMessageForUser(item.id);
                   }}
-                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                     selectedUser?.id === item.id
-                      ? "bg-blue-50 border border-blue-200"
-                      : "hover:bg-gray-50"
+                      ? "bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 shadow-sm"
+                      : "hover:bg-accent dark:hover:bg-accent/80 hover:shadow-sm"
                   }`}
                 >
                   {/* Avatar */}
                   <div className="relative">
-                    <Avatar>
-                      <AvatarImage src={avatar} />
+                    <Avatar className="w-12 h-12 border-2 border-background shadow-sm">
+                      <AvatarImage src={avatar || "/placeholder.svg"} />
+                      <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
+                        {displayName?.charAt(0)?.toUpperCase() || "?"}
+                      </AvatarFallback>
                     </Avatar>
 
                     {/* Online dot nếu là user */}
                     {!isGroup && (
                       <div
-                        className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-                          isOnline ? "bg-green-500" : "bg-gray-300"
+                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background shadow-sm transition-colors ${
+                          isOnline
+                            ? "bg-green-500 dark:bg-green-400"
+                            : "bg-muted-foreground/40 dark:bg-muted-foreground/30"
                         }`}
                       />
                     )}
@@ -1168,17 +1313,17 @@ export default function ChatPage() {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between">
-                      <div>
-                        <h3 className="font-medium truncate flex items-center gap-1">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold truncate flex items-center gap-2 text-foreground">
                           {displayName}
                           {isGroup && (
-                            <span className="ml-1 text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">
-                              Nhóm
+                            <span className="text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
+                              {t("group.typeGroup")}
                             </span>
                           )}
                         </h3>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-sm text-muted-foreground truncate mt-0.5">
                           {isGroup && lastMessages[item.id]?.senderName
                             ? `${lastMessages[item.id].senderName}: `
                             : ""}
@@ -1187,13 +1332,14 @@ export default function ChatPage() {
                       </div>
 
                       {/* New message badge */}
-                      <div>
-                        {hasNew && (
-                          <Badge variant="destructive" className="text-xs">
-                            Mới
-                          </Badge>
-                        )}
-                      </div>
+                      {hasNew && (
+                        <Badge
+                          variant="destructive"
+                          className="text-xs ml-2 bg-red-500 dark:bg-red-600 text-white border-0 shadow-sm animate-pulse"
+                        >
+                          {t("chat.new")}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1216,7 +1362,7 @@ export default function ChatPage() {
               <Link href="/profile">
                 <h4 className="font-medium">{user?.username}</h4>
               </Link>
-              <p className="text-sm text-green-600">Online</p>
+              <p className="text-sm text-green-600">{t("common.online")}</p>
             </div>
             <div className="flex gap-1">
               <Button variant="ghost" size="sm">
@@ -1236,11 +1382,15 @@ export default function ChatPage() {
           ${!selectedUser && isMobile ? "hidden" : "flex"}
         `}
       >
-        <NotificationBar
-          newNotfications={notification}
-          onSelectUser={handleUserSelect}
-          onFriendAccepted={fetchUsers}
-        />
+        <div className="flex justify-end">
+          <LanguageSelector/>
+          <ThemeToggle />
+          <NotificationBar
+            newNotfications={notification}
+            onSelectUser={handleUserSelect}
+            onFriendAccepted={fetchUsers}
+          />
+        </div>
         {selectedUser ? (
           <>
             {/* Chat Header */}
@@ -1270,19 +1420,27 @@ export default function ChatPage() {
                     <p className="text-sm text-gray-600">
                       {"username" in selectedUserWithStatus
                         ? selectedUserWithStatus.isOnline
-                          ? "Đang hoạt động"
-                          : "Không hoạt động"
-                        : "Nhóm chat"}
+                          ? t("common.online")
+                          : t("common.offline")
+                        : t("group.typeGroup")}
                     </p>
                   </div>
                 )}
               </div>
 
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => initiateCall("audio")}
+                >
                   <Phone className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => initiateCall("video")}
+                >
                   <Video className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="sm">
@@ -1298,13 +1456,13 @@ export default function ChatPage() {
                   <div className=" flex items-center justify-center">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                      <p>Đang tải tin nhắn...</p>
+                      <p>{t("chat.loadingMessages")}</p>
                     </div>
                   </div>
                 ) : (
-                  messages.map((message) => (
+                  messages.map((message, index) => (
                     <div
-                      key={message.id}
+                      key={index}
                       className={`flex gap-3 ${
                         message.isOwn ? "flex-row-reverse" : ""
                       }`}
@@ -1328,59 +1486,60 @@ export default function ChatPage() {
                           message.isOwn ? "items-end" : "items-start"
                         }`}
                       >
+                        {/* Reply Preview */}
+                        {message.replyTo && (
+                          <div
+                            className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 ${
+                              message.isOwn
+                                ? "border-blue-500"
+                                : "border-gray-400"
+                            }`}
+                          >
+                            <p className="text-sm font-semibold text-gray-700 leading-tight ">
+                              {message.replyTo.senderName}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {message.replyTo.content}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Message and Options aligned horizontally */}
                         <div
-                          className={`message-content flex ${
-                            message.isOwn ? "flex-row-reverse" : ""
+                          className={`message-content flex items-center gap-1 ${
+                            message.isOwn ? "flex-row-reverse" : "flex-row"
                           }`}
                         >
-                          <div className="flex flex-col gap-1">
-                            {/* Reply Preview */}
-                            {message.replyTo && (
-                              <div
-                                className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 ${
-                                  message.isOwn
-                                    ? "border-blue-500"
-                                    : "border-gray-400"
-                                }`}
-                              >
-                                <p className="text-sm font-semibold text-gray-700 leading-tight">
-                                  {message.replyTo.senderName}
-                                </p>
-                                <p className="text-xs text-gray-500 truncate">
-                                  {message.replyTo.content}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Actual Message Bubble */}
-                            <div
-                              className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
-                                message.isOwn
-                                  ? "bg-blue-600 text-white self-end"
-                                  : "bg-gray-200 text-gray-900 self-start"
+                          {/* Message Bubble */}
+                          <div
+                            className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
+                              message.isOwn
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-foreground"
+                            }`}
+                          >
+                            <p
+                              className={`text-sm break-words whitespace-pre-wrap flex flex-col ${
+                                message.isOwn ? "text-right" : "text-left"
                               }`}
                             >
-                              <p
-                                className={`text-sm leading-snug whitespace-pre-wrap break-words flex flex-col ${
-                                  message.isOwn ? "text-right" : "text-left"
-                                }`}
-                              >
-                                {message.content}
+                              {message.content}
 
-                                {message.edited && (
-                                  <span
-                                    className={`ml-2 text-[10px] italic ${
-                                      message.isOwn
-                                        ? "text-blue-200"
-                                        : "text-gray-500"
-                                    }`}
-                                  >
-                                    (đã chỉnh sửa)
-                                  </span>
-                                )}
-                              </p>
-                            </div>
+                              {message.edited && (
+                                <span
+                                  className={`ml-2 text-[10px] italic ${
+                                    message.isOwn
+                                      ? "text-blue-200"
+                                      : "text-gray-500"
+                                  }`}
+                                >
+                                  ({t("message.edited")})
+                                </span>
+                              )}
+                            </p>
                           </div>
+
+                          {/* Options right beside the message bubble only */}
                           <MessageOptions
                             messageId={message.id}
                             messageContent={message.content}
@@ -1391,15 +1550,18 @@ export default function ChatPage() {
                             onCopy={handleCopyMessage}
                           />
                         </div>
-                        <span className="text-xs text-gray-500 mt-1">
-                          {new Date(message.timestamp).toLocaleTimeString(
-                            "vi-VN",
-                            {
+                        <p className="text-sm text-foreground">
+                          {new Date(message.timestamp)
+                            .toLocaleString("en-GB", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
                               hour: "2-digit",
                               minute: "2-digit",
-                            }
-                          )}
-                        </span>
+                              hour12: true, // for AM/PM
+                            })
+                            .replace(",", " |")}
+                        </p>
                       </div>
                     </div>
                   ))
@@ -1427,7 +1589,7 @@ export default function ChatPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-medium text-blue-600">
-                        Đang trả lời {replyingToMessage.senderName}
+                        {t("chat.replyingTo")} {replyingToMessage.senderName}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
@@ -1454,7 +1616,7 @@ export default function ChatPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-medium text-yellow-600">
-                        Đang sửa tin nhắn
+                        {t("chat.editingMessage")}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
@@ -1490,10 +1652,10 @@ export default function ChatPage() {
                   onPaste={handlePaste}
                   placeholder={
                     editingMessageId
-                      ? `Đang sửa tin nhắn...`
+                      ? `${t("chat.editingMessage")}...`
                       : replyingToMessage
-                      ? `Trả lời ${replyingToMessage.senderName}...`
-                      : `Nhập tin nhắn gửi ${
+                      ? `${t("common.reply")} ${replyingToMessage.senderName}...`
+                      : `${t("chat.typeMessage")} ${
                           "username" in selectedUser
                             ? selectedUser.username
                             : selectedUser?.name || ""
@@ -1551,16 +1713,26 @@ export default function ChatPage() {
             <div className="text-center">
               <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Chọn một cuộc trò chuyện
+                {t("chat.selectConversation")}
               </h3>
               <p className="text-gray-500">
-                Chọn một người dùng từ danh sách bên trái để bắt đầu trò chuyện
+                {t("chat.selectConversationDesc")}
               </p>
             </div>
           </div>
         )}
       </div>
-
+      {/* active call modal */}
+      <ActiveCallModal
+        open={isActiveCallModalOpen}
+        onEnd={() => {
+          callSocket.endCall({ to: selectedUser?.id });
+          setActiveCallModalOpen(false);
+        }}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        callType={incomingCall?.callType ?? "audio"}
+      />
       {/* Add Friend Modal Component */}
       <AddFriendModal
         isOpen={isAddFriendModalOpen}
@@ -1568,11 +1740,34 @@ export default function ChatPage() {
         friendUseCases={friendUseCases}
         currentUserId={user?.id}
       />
+      {/* create group chat modal */}
       <CreateGroupModal
         isOpen={showCreateModal}
         onClose={() => setIsCreateGroupModalOpen(false)}
         friends={friends}
         socket={socket}
+      />
+      {/* in comming call dialog */}
+      <IncomingCallModal
+        open={!!incomingCall}
+        caller={incomingCall?.from ?? null}
+        callType={incomingCall?.callType ?? "audio"}
+        onAccept={handleAcceptCall}
+        onReject={handleRejectCall}
+      />
+      {/* out going call modal */}
+      <OutgoingCallModal
+        open={isOutgoingModalOpen}
+        onCancel={() => {
+          console.log("cancel");
+
+          callSocket.cancelCall({ to: selectedUser?.id, from: user?.id });
+          setOutgoingModalOpen(false);
+          setIncomingCall(null);
+        }}
+        callee={selectedUser as User}
+        callType={incomingCall?.callType ?? "audio"}
+        status={callStatus}
       />
     </div>
   );
