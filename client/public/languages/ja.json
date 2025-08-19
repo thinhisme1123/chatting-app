@@ -14,7 +14,8 @@
     "search": "検索",
     "online": "オンライン",
     "offline": "オフライン",
-    "typing": "入力中..."
+    "typing": "入力中...",
+    "searching": "検索中"
   },
   "auth": {
     "welcomeBack": "おかえりなさい",
@@ -48,6 +49,7 @@
     "passwordTooShort": "パスワードは6文字以上である必要があります"
   },
   "chat": {
+    "new": "新しい",
     "messages": "メッセージ",
     "selectConversation": "会話を選択",
     "selectConversationDesc": "リストから会話を選択してメッセージを開始",
@@ -83,6 +85,7 @@
   },
   "group": {
     "createNewGroup": "新しいグループを作成",
+    "typeGroup" : "グループ",
     "step": "ステップ",
     "groupInfo": "グループ情報",
     "selectMembers": "メンバー選択",
@@ -100,5 +103,29 @@
     "createGroup": "グループ作成",
     "creating": "作成中...",
     "groupCreated": "グループが正常に作成されました！"
+  },
+  "message": {
+    "edited": "編集済み"
+  },
+  "addFriendModal": {
+    "addNewFriend": "新しい友達を追加",
+    "subTitle": "エキサイティングな新しい友達を見つけてつながりましょう!",
+    "placeholderInputSearchbox": "名前またはメールアドレスを入力してください",
+    "pleaseWaiting": "ちょっと待って!",
+    "startSearchFriend": "友達を探し始めましょう！",
+    "subSearchFriend": "名前またはメールアドレスを入力して、興味深い新しい友達を見つけましょう",
+    "noResultsTitle": "結果が見つかりません",
+    "noResultsSubtitle": "別のキーワードで検索してみてください！",
+    "searchResultsTitle": "検索結果",
+    "searchResultsCount": "ユーザー",
+    "requestSentHint": "友達リクエストを送信しました",
+    "tapToAddFriend": "タップして友達追加",
+    "alreadyFriendsFull": "すでに友達です",
+    "alreadyFriendsShort": "友達",
+    "requestSentFull": "送信済み",
+    "requestSentShort": "✓",
+    "addFriendFull": "友達追加",
+    "addFriendShort": "追加",
+    "encourageMessage": "友達になって素敵な瞬間を共有しましょう！"
   }
 }

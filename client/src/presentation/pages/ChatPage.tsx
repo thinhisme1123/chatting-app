@@ -64,8 +64,10 @@ import { ActiveCallModal } from "../components/call/ActiveCallModal";
 import { ThemeToggle } from "../components/parts/ThemeToggle";
 import { AvatarFallback } from "@radix-ui/react-avatar";
 import { LanguageSelector } from "../components/parts/LanguageSelector";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export default function ChatPage() {
+  const {t} = useLanguage()
   const [socket, setSocket] = useState<Socket | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | ChatRoom | null>(
     null
@@ -1210,7 +1212,7 @@ export default function ChatPage() {
       >
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Tin nhắn</h2>
+            <h2 className="text-xl font-semibold">{t("chat.messages")}</h2>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1232,7 +1234,7 @@ export default function ChatPage() {
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-muted transition-colors cursor-pointer rounded-md"
                 >
                   <UserPlus className="h-4 w-4 text-blue-600" />
-                  <span>Gửi lời mời kết bạn</span>
+                  <span>{t("friends.addFriend")}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
@@ -1241,7 +1243,7 @@ export default function ChatPage() {
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-muted transition-colors cursor-pointer rounded-md"
                 >
                   <Users className="h-4 w-4 text-green-600" />
-                  <span>Tạo nhóm chat</span>
+                  <span>{t("chat.createGroup")}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1250,7 +1252,7 @@ export default function ChatPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Tìm kiếm cuộc trò chuyện..."
+              placeholder={t("chat.searchConversations")}
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -1317,7 +1319,7 @@ export default function ChatPage() {
                           {displayName}
                           {isGroup && (
                             <span className="text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800">
-                              Nhóm
+                              {t("group.typeGroup")}
                             </span>
                           )}
                         </h3>
@@ -1335,7 +1337,7 @@ export default function ChatPage() {
                           variant="destructive"
                           className="text-xs ml-2 bg-red-500 dark:bg-red-600 text-white border-0 shadow-sm animate-pulse"
                         >
-                          Mới
+                          {t("chat.new")}
                         </Badge>
                       )}
                     </div>
@@ -1360,7 +1362,7 @@ export default function ChatPage() {
               <Link href="/profile">
                 <h4 className="font-medium">{user?.username}</h4>
               </Link>
-              <p className="text-sm text-green-600">Online</p>
+              <p className="text-sm text-green-600">{t("common.online")}</p>
             </div>
             <div className="flex gap-1">
               <Button variant="ghost" size="sm">
@@ -1418,9 +1420,9 @@ export default function ChatPage() {
                     <p className="text-sm text-gray-600">
                       {"username" in selectedUserWithStatus
                         ? selectedUserWithStatus.isOnline
-                          ? "Đang hoạt động"
-                          : "Không hoạt động"
-                        : "Nhóm chat"}
+                          ? t("common.online")
+                          : t("common.offline")
+                        : t("group.typeGroup")}
                     </p>
                   </div>
                 )}
@@ -1454,7 +1456,7 @@ export default function ChatPage() {
                   <div className=" flex items-center justify-center">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                      <p>Đang tải tin nhắn...</p>
+                      <p>{t("chat.loadingMessages")}</p>
                     </div>
                   </div>
                 ) : (
@@ -1531,7 +1533,7 @@ export default function ChatPage() {
                                       : "text-gray-500"
                                   }`}
                                 >
-                                  (đã chỉnh sửa)
+                                  ({t("message.edited")})
                                 </span>
                               )}
                             </p>
@@ -1587,7 +1589,7 @@ export default function ChatPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-medium text-blue-600">
-                        Đang trả lời {replyingToMessage.senderName}
+                        {t("chat.replyingTo")} {replyingToMessage.senderName}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
@@ -1614,7 +1616,7 @@ export default function ChatPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-medium text-yellow-600">
-                        Đang sửa tin nhắn
+                        {t("chat.editingMessage")}
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
@@ -1650,10 +1652,10 @@ export default function ChatPage() {
                   onPaste={handlePaste}
                   placeholder={
                     editingMessageId
-                      ? `Đang sửa tin nhắn...`
+                      ? `${t("chat.editingMessage")}...`
                       : replyingToMessage
-                      ? `Trả lời ${replyingToMessage.senderName}...`
-                      : `Nhập tin nhắn gửi ${
+                      ? `${t("common.reply")} ${replyingToMessage.senderName}...`
+                      : `${t("chat.typeMessage")} ${
                           "username" in selectedUser
                             ? selectedUser.username
                             : selectedUser?.name || ""
@@ -1711,10 +1713,10 @@ export default function ChatPage() {
             <div className="text-center">
               <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Chọn một cuộc trò chuyện
+                {t("chat.selectConversation")}
               </h3>
               <p className="text-gray-500">
-                Chọn một người dùng từ danh sách bên trái để bắt đầu trò chuyện
+                {t("chat.selectConversationDesc")}
               </p>
             </div>
           </div>

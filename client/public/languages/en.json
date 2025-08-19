@@ -14,7 +14,8 @@
     "search": "Search",
     "online": "Online",
     "offline": "Offline",
-    "typing": "Typing..."
+    "typing": "Typing...",
+    "searching": "Searching"
   },
   "auth": {
     "welcomeBack": "Welcome Back",
@@ -48,6 +49,7 @@
     "passwordTooShort": "Password must be at least 6 characters"
   },
   "chat": {
+    "new": "New",
     "messages": "Messages",
     "selectConversation": "Select a conversation",
     "selectConversationDesc": "Choose a conversation from the list to start messaging",
@@ -70,7 +72,6 @@
     "messageDeleted": "Message deleted"
   },
   "friends": {
-    "addNewFriend": "Add New Friend",
     "searchAndConnect": "Search and connect with amazing new friends!",
     "searchUsers": "Search users...",
     "searchResults": "Search Results",
@@ -83,6 +84,7 @@
   },
   "group": {
     "createNewGroup": "Create New Group",
+    "typeGroup": "Group",
     "step": "Step",
     "groupInfo": "Group Info",
     "selectMembers": "Select Members",
@@ -100,5 +102,29 @@
     "createGroup": "Create Group",
     "creating": "Creating...",
     "groupCreated": "Group created successfully!"
+  },
+  "message": {
+    "edited": "edited"
+  },
+  "addFriendModal": {
+    "addNewFriend": "Add new friend",
+    "subTitle": "Find and connect with exciting new friends!",
+    "placeholderInputSearchbox": "Enter name or email",
+    "pleaseWaiting": "Wait a minute!",
+    "startSearchFriend": "Start looking for friends!",
+    "subSearchFriend": "Enter your name or email to discover interesting new friends",
+    "noResultsTitle": "No results found",
+    "noResultsSubtitle": "Try searching with a different keyword!",
+    "searchResultsTitle": "Search results",
+    "searchResultsCount": "users",
+    "requestSentHint": "Friend request sent",
+    "tapToAddFriend": "Tap to add friend",
+    "alreadyFriendsFull": "Already friends",
+    "alreadyFriendsShort": "Friend",
+    "requestSentFull": "Sent",
+    "requestSentShort": "✓",
+    "addFriendFull": "Add friend",
+    "addFriendShort": "Add",
+    "encourageMessage": "Make friends and share wonderful moments!"
   }
 }

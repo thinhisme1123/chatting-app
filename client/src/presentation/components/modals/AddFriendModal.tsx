@@ -33,6 +33,7 @@ import toast from "react-hot-toast";
 import type { User } from "../../../domain/entities/User";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../../contexts/AuthContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface AddFriendModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
   friendUseCases,
   currentUserId,
 }) => {
+  const {t} = useLanguage();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -188,10 +190,10 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             </div>
 
             <DialogTitle className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-gray-800 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 text-center">
-              Kết bạn mới
+              {t("addFriendModal.addNewFriend")}
             </DialogTitle>
             <DialogDescription className="text-gray-600 text-sm sm:text-base px-2 sm:px-0 text-center">
-              Tìm kiếm và kết nối với những người bạn mới thú vị! 🚀
+              {t("addFriendModal.subTitle")} 🚀
             </DialogDescription>
           </DialogHeader>
 
@@ -203,7 +205,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                 <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                 <Input
                   id="search"
-                  placeholder="Nhập tên hoặc email..."
+                  placeholder={`${t("addFriendModal.placeholderInputSearchbox")}...`}
                   className="sm:pr-4 h-12 sm:h-14 text-base sm:text-lg border-2 border-gray-200 focus:border-blue-400 rounded-xl bg-white/80 backdrop-blur-sm transition-all duration-200 group-hover:shadow-lg"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
@@ -233,10 +235,10 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                         <div className="absolute inset-0 h-12 w-12 animate-ping rounded-full bg-blue-400/20"></div>
                       </div>
                       <p className="mt-4 text-lg font-medium">
-                        Đang tìm kiếm...
+                        {t("common.searching")}...
                       </p>
                       <p className="text-sm text-gray-400">
-                        Chờ một chút nhé! ✨
+                        {t("addFriendModal.pleaseWaiting")} ✨
                       </p>
                     </div>
                   ) : searchQuery.trim() === "" ? (
@@ -252,11 +254,10 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                         </div>
                       </div>
                       <p className="text-lg font-medium mb-2">
-                        Bắt đầu tìm kiếm bạn bè!
+                        {t("addFriendModal.startSearchFriend")}
                       </p>
                       <p className="text-sm text-gray-400 text-center max-w-xs">
-                        Nhập tên hoặc email để khám phá những người bạn mới thú
-                        vị
+                        {t("addFriendModal.subSearchFriend")}
                       </p>
                     </div>
                   ) : searchResults.length === 0 ? (
@@ -270,10 +271,10 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                         </div>
                       </div>
                       <p className="text-lg font-medium mb-2">
-                        Không tìm thấy kết quả
+                        {t("addFriendModal.noResultsTitle")}
                       </p>
                       <p className="text-sm text-gray-400 text-center max-w-xs">
-                        Thử tìm kiếm với từ khóa khác nhé!
+                        {t("addFriendModal.noResultsSubtitle")}
                       </p>
                     </div>
                   ) : (
@@ -281,13 +282,13 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                       <div className="p-4 flex items-center justify-between">
                         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
                           <Users className="h-4 w-4 text-blue-500" />
-                          Kết quả tìm kiếm
+                          {t("addFriendModal.searchResultsTitle")}
                         </h3>
                         <Badge
                           variant="secondary"
                           className="bg-blue-100 text-blue-700"
                         >
-                          {searchResults.length} người dùng
+                         {searchResults.length} {t("addFriendModal.searchResultsCount")}
                         </Badge>
                       </div>
 
@@ -350,8 +351,8 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                               </p>
                               <p className="text-xs text-gray-400 mt-1 hidden sm:block leading-tight line-clamp-1 min-h-[16px]">
                                 {isRequestSent
-                                  ? "Đã gửi lời mời kết bạn"
-                                  : "Nhấn để kết bạn"}
+                                  ? t("addFriendModal.requestSentHint")
+                                  : t("addFriendModal.tapToAddFriend")}
                               </p>
                             </div>
 
@@ -383,15 +384,15 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                                   <>
                                     <UserCheck className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
                                     <span className="hidden sm:inline">
-                                      Đã là bạn bè
+                                      {t("addFriendModal.alreadyFriendsFull")}
                                     </span>
-                                    <span className="sm:hidden">Bạn</span>
+                                    <span className="sm:hidden">{t("addFriendModal.alreadyFriendsShort")}</span>
                                   </>
                                 ) : isRequestSent ? (
                                   <>
                                     <CheckCircle2 className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                                     <span className="hidden sm:inline">
-                                      Đã gửi
+                                      {t("addFriendModal.requestSentFull")}
                                     </span>
                                     <span className="sm:hidden">✓</span>
                                   </>
@@ -399,9 +400,9 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                                   <>
                                     <UserPlus className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                                     <span className="hidden sm:inline">
-                                      Kết bạn
+                                      {t("addFriendModal.addFriendFull")}
                                     </span>
-                                    <span className="sm:hidden">Add</span>
+                                    <span className="sm:hidden">{t("addFriendModal.addFriendShort")}</span>
                                   </>
                                 )}
                               </Button>
@@ -425,7 +426,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
             <div className="text-center m-2">
               <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
                 <Heart className="h-4 w-4 text-pink-500" />
-                Hãy kết bạn và chia sẻ những khoảnh khắc tuyệt vời!
+                {t("addFriendModal.encourageMessage")}
                 <Sparkles className="h-4 w-4 text-yellow-500" />
               </p>
             </div>

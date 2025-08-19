@@ -14,7 +14,8 @@
     "search": "Tìm kiếm",
     "online": "Đang hoạt động",
     "offline": "Không hoạt động",
-    "typing": "Đang nhập..."
+    "typing": "Đang nhập...",
+    "searching": "Đang tìm kiếm"
   },
   "auth": {
     "welcomeBack": "Chào mừng trở lại",
@@ -48,6 +49,7 @@
     "passwordTooShort": "Mật khẩu phải có ít nhất 6 ký tự"
   },
   "chat": {
+    "new": "Mới",
     "messages": "Tin nhắn",
     "selectConversation": "Chọn một cuộc trò chuyện",
     "selectConversationDesc": "Chọn một cuộc trò chuyện từ danh sách để bắt đầu nhắn tin",
@@ -83,6 +85,7 @@
   },
   "group": {
     "createNewGroup": "Tạo nhóm mới",
+    "typeGroup": "Nhóm",
     "step": "Bước",
     "groupInfo": "Thông tin nhóm",
     "selectMembers": "Chọn thành viên",
@@ -100,5 +103,29 @@
     "createGroup": "Tạo nhóm",
     "creating": "Đang tạo...",
     "groupCreated": "Nhóm đã được tạo thành công!"
+  },
+  "message": {
+    "edited": "đã chỉnh sửa"
+  },
+  "addFriendModal": {
+    "addNewFriend": "Kết bạn mới",
+    "subTitle": "Tìm kiếm và kết nối với những người bạn mới thú vị!",
+    "placeholderInputSearchbox": "Nhập tên hoặc email",
+    "pleaseWaiting": "Chờ một chút nhé!",
+    "startSearchFriend": "Bắt đầu tìm kiếm bạn bè!",
+    "subSearchFriend": "Nhập tên hoặc email để khám phá những người bạn mới thú vị",
+    "noResultsTitle": "Không tìm thấy kết quả",
+    "noResultsSubtitle": "Thử tìm kiếm với từ khóa khác nhé!",
+    "searchResultsTitle": "Kết quả tìm kiếm",
+    "searchResultsCount": "người dùng",
+    "requestSentHint": "Đã gửi lời mời kết bạn",
+    "tapToAddFriend": "Nhấn để kết bạn",
+    "alreadyFriendsFull": "Đã là bạn bè",
+    "alreadyFriendsShort": "Bạn",
+    "requestSentFull": "Đã gửi",
+    "requestSentShort": "✓",
+    "addFriendFull": "Kết bạn",
+    "addFriendShort": "Add",
+    "encourageMessage": "Hãy kết bạn và chia sẻ những khoảnh khắc tuyệt vời!"
   }
 }
