@@ -34,6 +34,7 @@ import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.
 import { useAuth } from "../../contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface Props {
   isOpen: boolean;
@@ -82,6 +83,7 @@ export const CreateGroupModal = ({
   friends,
   socket,
 }: Props) => {
+  const {t} = useLanguage()
   const { user } = useAuth();
   const [groupName, setGroupName] = useState("");
   const [groupDescription, setGroupDescription] = useState("");
@@ -111,10 +113,10 @@ export const CreateGroupModal = ({
       if (groupAvatar) {
         const formData = new FormData();
         formData.append("avatar", groupAvatar);
-        formData.append("userId", user.id); 
+        formData.append("userId", user.id);
 
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/user/upload-group-avatar`,
+          `${process.env.NEXT_PUBLIC_API_URL}/user/upload-avatar`,
           {
             method: "POST",
             body: formData,
@@ -135,7 +137,7 @@ export const CreateGroupModal = ({
         avatar: imageUrl,
         theme: selectedTheme.name,
       });
-      toast.success("Tạo nhóm thành công!")
+      toast.success("Tạo nhóm thành công!");
 
       // Gửi socket cho thành viên
       socket?.emit("group-created", {
@@ -154,7 +156,7 @@ export const CreateGroupModal = ({
       setStep(1);
       onClose();
     } catch (err) {
-      toast.error("Tạo nhóm thất bại!")
+      toast.error("Tạo nhóm thất bại!");
       console.error("Tạo nhóm lỗi:", err);
     } finally {
       setIsLoading(false);
@@ -219,12 +221,12 @@ export const CreateGroupModal = ({
             </div>
 
             <DialogTitle className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-              Tạo nhóm chat mới
+              {t("createGroupModal.title")}
             </DialogTitle>
             <DialogDescription className="text-gray-600 text-sm sm:text-base px-2 sm:px-0">
-              {step === 1 && "Đặt tên và mô tả cho nhóm của bạn"}
-              {step === 2 && "Chọn thành viên tham gia nhóm"}
-              {step === 3 && "Chọn chủ đề màu sắc cho nhóm"}
+              {step === 1 && t("createGroupModal.step1")}
+              {step === 2 && t("createGroupModal.step2")}
+              {step === 3 && t("createGroupModal.step3")}
             </DialogDescription>
 
             {/* Progress Bar */}
@@ -317,7 +319,7 @@ export const CreateGroupModal = ({
                   </Label>
                   <Input
                     id="groupName"
-                    placeholder="Nhập tên nhóm tuyệt vời..."
+                    placeholder={t("createGroupModal.placeholderGroupName")}
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                     className="h-10 sm:h-12 text-base sm:text-lg border-2 focus:border-blue-400 transition-all duration-200"
@@ -331,11 +333,11 @@ export const CreateGroupModal = ({
                     className="text-sm font-medium flex items-center gap-2"
                   >
                     <Heart className="h-4 w-4 text-pink-500" />
-                    Mô tả nhóm
+                    {t("createGroupModal.groupDescriptionLabel")}
                   </Label>
                   <Textarea
                     id="groupDescription"
-                    placeholder="Mô tả ngắn gọn về nhóm của bạn..."
+                    placeholder={t("createGroupModal.groupDescriptionPlaceholder")}
                     value={groupDescription}
                     onChange={(e) => setGroupDescription(e.target.value)}
                     className="min-h-[80px] sm:min-h-[100px] resize-none border-2 focus:border-blue-400 transition-all duration-200"
@@ -350,13 +352,13 @@ export const CreateGroupModal = ({
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium flex items-center gap-2">
                     <UserPlus className="h-4 w-4 text-blue-500" />
-                    Chọn thành viên
+                    {t("createGroupModal.chooseMembers")}
                   </Label>
                   <Badge
                     variant="secondary"
                     className="bg-blue-100 text-blue-700 text-xs sm:text-sm"
                   >
-                    {selected.length} đã chọn
+                    {selected.length} {t("createGroupModal.membersSelected")}
                   </Badge>
                 </div>
 
@@ -365,7 +367,7 @@ export const CreateGroupModal = ({
                     <div className="text-center text-gray-500 py-8 sm:py-12">
                       <Users className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-50" />
                       <p className="text-sm sm:text-base">
-                        Không có bạn bè nào để thêm vào nhóm.
+                        {t("createGroupModal.noFriends")}
                       </p>
                     </div>
                   ) : (
@@ -410,7 +412,7 @@ export const CreateGroupModal = ({
                                   isSelected ? "text-white/80" : "text-gray-500"
                                 )}
                               >
-                                Sẵn sàng tham gia
+                                {t("createGroupModal.readyToJoin")}
                               </p>
                             </div>
                             {isSelected && (
@@ -430,7 +432,7 @@ export const CreateGroupModal = ({
               <div className="space-y-3 sm:space-y-4 animate-in slide-in-from-right-5 duration-300">
                 <Label className="text-sm font-medium flex items-center gap-2">
                   <Palette className="h-4 w-4 text-purple-500" />
-                  Chọn chủ đề màu sắc
+                  {t("createGroupModal.chooseTheme")}
                 </Label>
 
                 <div className="grid grid-cols-3 sm:grid-cols-2 gap-2 sm:gap-3">
@@ -468,7 +470,7 @@ export const CreateGroupModal = ({
                 {/* Preview */}
                 <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-white/70 rounded-lg sm:rounded-xl border-2 border-dashed border-gray-300">
                   <p className="text-xs sm:text-sm text-gray-600 mb-2">
-                    Xem trước nhóm:
+                    {t("createGroupModal.previewGroup")}
                   </p>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div
@@ -480,10 +482,10 @@ export const CreateGroupModal = ({
                     </div>
                     <div>
                       <p className="font-semibold text-sm sm:text-base truncate">
-                        {groupName || "Tên nhóm"}
+                        {groupName || t("createGroupModal.defaultGroupName")}
                       </p>
                       <p className="text-xs sm:text-sm text-gray-500">
-                        {selected.length + 1} thành viên
+                        {selected.length + 1} {t("createGroupModal.memberCount")}
                       </p>
                     </div>
                   </div>
@@ -500,7 +502,7 @@ export const CreateGroupModal = ({
                   className="w-full sm:flex-1 h-10 sm:h-12 border-2 hover:bg-gray-50 transition-all duration-200 bg-transparent order-2 sm:order-1"
                   disabled={isLoading}
                 >
-                  Quay lại
+                  {t("createGroupModal.back")}
                 </Button>
               )}
 
@@ -513,7 +515,7 @@ export const CreateGroupModal = ({
                   }
                   className={`w-full sm:flex-1 h-10 sm:h-12 bg-gradient-to-r ${selectedTheme.gradient} hover:shadow-lg transition-all duration-200 hover:scale-[1.02] text-white border-0 order-1 sm:order-2`}
                 >
-                  <span className="mr-2">Tiếp tục</span>
+                  <span className="mr-2">{t("createGroupModal.continue")}</span>
                   <Zap className="h-4 w-4" />
                 </Button>
               ) : (
@@ -525,14 +527,14 @@ export const CreateGroupModal = ({
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span className="hidden sm:inline">Đang tạo nhóm...</span>
-                      <span className="sm:hidden">Đang tạo...</span>
+                      <span className="hidden sm:inline">{t("createGroupModal.creatingGroupFull")}</span>
+                      <span className="sm:hidden">{t("createGroupModal.creatingGroupShort")}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="mr-2 h-4 w-4" />
-                      <span className="hidden sm:inline">Tạo nhóm ngay!</span>
-                      <span className="sm:hidden">Tạo nhóm!</span>
+                      <span className="hidden sm:inline">{t("createGroupModal.createGroupFull")}</span>
+                      <span className="sm:hidden">{t("createGroupModal.createGroupShort")}</span>
                     </>
                   )}
                 </Button>

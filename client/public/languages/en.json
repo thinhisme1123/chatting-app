@@ -69,7 +69,8 @@
     "loadingMessages": "Loading messages...",
     "messageCopied": "Message copied",
     "messageEdited": "Message edited",
-    "messageDeleted": "Message deleted"
+    "messageDeleted": "Message deleted",
+    "noMessageYet": "No messages yet."
   },
   "friends": {
     "searchAndConnect": "Search and connect with amazing new friends!",
@@ -126,5 +127,28 @@
     "addFriendFull": "Add friend",
     "addFriendShort": "Add",
     "encourageMessage": "Make friends and share wonderful moments!"
+  },
+  "createGroupModal": {
+    "title": "Create a new group chat",
+    "step1": "Set a name and description for your group",
+    "step2": "Choose members to join the group",
+    "step3": "Select a theme color for your group",
+    "placeholderGroupName": "Enter an awesome group name...",
+    "groupDescriptionLabel": "Group description",
+    "groupDescriptionPlaceholder": "Write a short description about your group...",
+    "chooseMembers": "Choose members",
+    "membersSelected": "selected",
+    "noFriends": "No friends available to add to the group.",
+    "readyToJoin": "Ready to join",
+    "chooseTheme": "Choose theme color",
+    "previewGroup": "Group preview:",
+    "defaultGroupName": "Group name",
+    "memberCount": "members",
+    "back": "Back",
+    "continue": "Continue",
+    "creatingGroupFull": "Creating group...",
+    "creatingGroupShort": "Creating...",
+    "createGroupFull": "Create group now!",
+    "createGroupShort": "Create!"
   }
 }

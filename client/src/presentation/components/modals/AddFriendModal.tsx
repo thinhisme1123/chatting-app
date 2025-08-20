@@ -342,7 +342,7 @@ export const AddFriendModal: React.FC<AddFriendModalProps> = ({
                                     variant="secondary"
                                     className="bg-green-100 text-green-700 text-xs hidden sm:inline-flex"
                                   >
-                                    Online
+                                    {t("common.online")}
                                   </Badge>
                                 )}
                               </div>
