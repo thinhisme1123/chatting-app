@@ -69,7 +69,8 @@
     "loadingMessages": "メッセージを読み込み中...",
     "messageCopied": "メッセージをコピーしました",
     "messageEdited": "メッセージが編集されました",
-    "messageDeleted": "メッセージが削除されました"
+    "messageDeleted": "メッセージが削除されました",
+    "noMessageYet": "まだメッセージはありません."
   },
   "friends": {
     "addNewFriend": "新しい友達を追加",
@@ -127,5 +128,28 @@
     "addFriendFull": "友達追加",
     "addFriendShort": "追加",
     "encourageMessage": "友達になって素敵な瞬間を共有しましょう！"
+  },
+  "createGroupModal": {
+    "title": "新しいグループチャットを作成",
+    "step1": "グループの名前と説明を設定してください",
+    "step2": "グループに参加するメンバーを選択してください",
+    "step3": "グループのテーマカラーを選んでください",
+    "placeholderGroupName": "素敵なグループ名を入力してください...",
+    "groupDescriptionLabel": "グループの説明",
+    "groupDescriptionPlaceholder": "グループについて簡単に説明してください...",
+    "chooseMembers": "メンバーを選択",
+    "membersSelected": "人を選択済み",
+    "noFriends": "グループに追加できる友達がいません。",
+    "readyToJoin": "参加準備完了",
+    "chooseTheme": "テーマカラーを選択",
+    "previewGroup": "グループのプレビュー:",
+    "defaultGroupName": "グループ名",
+    "memberCount": "{{count}} 人のメンバー",
+    "back": "戻る",
+    "continue": "続ける",
+    "creatingGroupFull": "グループを作成中...",
+    "creatingGroupShort": "作成中...",
+    "createGroupFull": "今すぐグループを作成！",
+    "createGroupShort": "作成！"
   }
 }

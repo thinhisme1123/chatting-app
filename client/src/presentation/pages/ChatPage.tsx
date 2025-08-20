@@ -301,7 +301,7 @@ export default function ChatPage() {
           setLastMessages((prev) => ({
             ...prev,
             [id]: {
-              content: message.content || "No messages yet.",
+              content: message.content || t("chat.noMessageYet"),
               timestamp: message.timestamp.toString(),
               senderName: message.senderName, // Add this if you’re using it
             },
@@ -313,7 +313,7 @@ export default function ChatPage() {
           setLastMessages((prev) => ({
             ...prev,
             [id]: {
-              content: message.content || "No messages yet.",
+              content: message.content || t("chat.noMessageYet"),
               timestamp: message.timestamp.toString(),
             },
           }));
@@ -530,7 +530,7 @@ export default function ChatPage() {
         const message = await chatUseCases.getLastMessage(user.id, userItem.id);
 
         newMessagesMap[userItem.id] = {
-          content: message?.content || "No messages yet.",
+          content: message?.content || t("chat.noMessageYet"),
           timestamp: message?.timestamp
             ? new Date(message.timestamp).toISOString()
             : new Date().toISOString(),
@@ -561,7 +561,7 @@ export default function ChatPage() {
         const msg = await chatRoomUseCases.getGroupLastMessage(room.id);
 
         newMap[room.id] = {
-          content: msg?.content || "No messages yet.",
+          content: msg?.content || t("chat.noMessageYet"),
           timestamp: msg?.timestamp
             ? new Date(msg.timestamp).toISOString()
             : new Date().toISOString(),
@@ -1268,9 +1268,9 @@ export default function ChatPage() {
               const avatar = item.avatar || "/images/user-placeholder.jpg";
               const hasNew = newMessageUserIds.includes(item.id);
               const rawMsg =
-                lastMessages[item.id]?.content || "No message yet.";
-              const lastMsg = truncate(rawMsg);
-              const isOnline = !isGroup && onlineUserIds.includes(item.id); // chỉ áp dụng với user
+                lastMessages[item.id]?.content || t("chat.noMessageYet");
+              const lastMsg = truncate(rawMsg, isGroup);
+              const isOnline = !isGroup && onlineUserIds.includes(item.id); 
 
               return (
                 <div

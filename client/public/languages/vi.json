@@ -69,7 +69,8 @@
     "loadingMessages": "Đang tải tin nhắn...",
     "messageCopied": "Đã sao chép tin nhắn",
     "messageEdited": "Tin nhắn đã được chỉnh sửa",
-    "messageDeleted": "Tin nhắn đã được xóa"
+    "messageDeleted": "Tin nhắn đã được xóa",
+    "noMessageYet": "Chưa có tin nhắn nào."
   },
   "friends": {
     "addNewFriend": "Kết bạn mới",
@@ -127,5 +128,28 @@
     "addFriendFull": "Kết bạn",
     "addFriendShort": "Add",
     "encourageMessage": "Hãy kết bạn và chia sẻ những khoảnh khắc tuyệt vời!"
+  },
+  "createGroupModal": {
+    "title": "Tạo nhóm chat mới",
+    "step1": "Đặt tên và mô tả cho nhóm của bạn",
+    "step2": "Chọn thành viên tham gia nhóm",
+    "step3": "Chọn chủ đề màu sắc cho nhóm",
+    "placeholderGroupName": "Nhập tên nhóm tuyệt vời...",
+    "groupDescriptionLabel": "Mô tả nhóm",
+    "groupDescriptionPlaceholder": "Mô tả ngắn gọn về nhóm của bạn...",
+    "chooseMembers": "Chọn thành viên",
+    "membersSelected": "đã chọn",
+    "noFriends": "Không có bạn bè nào để thêm vào nhóm.",
+    "readyToJoin": "Sẵn sàng tham gia",
+    "chooseTheme": "Chọn chủ đề màu sắc",
+    "previewGroup": "Xem trước nhóm:",
+    "defaultGroupName": "Tên nhóm",
+    "memberCount": "thành viên",
+    "back": "Quay lại",
+    "continue": "Tiếp tục",
+    "creatingGroupFull": "Đang tạo nhóm...",
+    "creatingGroupShort": "Đang tạo...",
+    "createGroupFull": "Tạo nhóm ngay!",
+    "createGroupShort": "Tạo nhóm!"
   }
 }
