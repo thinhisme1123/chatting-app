@@ -7,7 +7,7 @@ import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.
 import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
 import { ChatRoom } from "@/src/domain/entities/ChatRoom";
-import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
+import { GroupMessage } from "@/src/domain/entities/GroupMessage";
 import { LastMessageInfo } from "@/src/domain/entities/LastMessageInfor";
 import { Message } from "@/src/domain/entities/Message";
 import {
@@ -65,9 +65,11 @@ import { ThemeToggle } from "../components/parts/ThemeToggle";
 import { AvatarFallback } from "@radix-ui/react-avatar";
 import { LanguageSelector } from "../components/parts/LanguageSelector";
 import { useLanguage } from "../contexts/LanguageContext";
+import { AuthUseCases } from "@/src/application/usecases/auth-use-cases.query";
+import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
 
 export default function ChatPage() {
-  const {t} = useLanguage()
+  const { t } = useLanguage();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [selectedUser, setSelectedUser] = useState<User | ChatRoom | null>(
     null
@@ -110,6 +112,7 @@ export default function ChatPage() {
   const chatUseCases = new ChatUseCases(new ChatRepository());
   const friendUseCases = new FriendUseCases(new FriendRepository());
   const chatRoomUseCases = new ChatRoomUseCase(new ChatRoomRepository());
+  const authUseCases = new AuthUseCases(new AuthRepository());
 
   const [isMobile, setIsMobile] = useState(false);
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
@@ -202,10 +205,12 @@ export default function ChatPage() {
 
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
+
     if (!items) return;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      console.log("Item type:", item.type);
       if (item.type.indexOf("image") !== -1) {
         e.preventDefault();
         const file = item.getAsFile();
@@ -1080,7 +1085,7 @@ export default function ChatPage() {
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedUser || !socket || !user) return;
 
@@ -1122,11 +1127,17 @@ export default function ChatPage() {
       return;
     }
 
+    const imageUrl = await authUseCases.uploadImage(
+      user.id,
+      pastedImages[0].file
+    );
+
     const message = {
       senderId: user.id,
       senderName: user.username,
       content: newMessage,
       timestamp: new Date(),
+      imageUrl: imageUrl,
       isOwn: true,
       replyTo: replyingToMessage || undefined,
     };
@@ -1145,6 +1156,7 @@ export default function ChatPage() {
         content: newMessage,
         fromUserId: user.id,
         senderName: user.username,
+        imageUrl: imageUrl,
         senderAvatar: user.avatar,
         timestamp: new Date(),
         replyTo: replyingToMessage || undefined,
@@ -1159,6 +1171,7 @@ export default function ChatPage() {
         fromUserId: user.id,
         toUserId: selectedUser.id,
         senderName: user.username,
+        imageUrl: imageUrl,
         senderAvatar: user.avatar,
         message: newMessage,
         replyTo: replyingToMessage || undefined,
@@ -1175,6 +1188,7 @@ export default function ChatPage() {
 
     setNewMessage("");
     setReplyingToMessage(null); // ✅ Clear reply after send
+    setPastedImages([]);
   };
 
   // Loading state
@@ -1270,7 +1284,7 @@ export default function ChatPage() {
               const rawMsg =
                 lastMessages[item.id]?.content || t("chat.noMessageYet");
               const lastMsg = truncate(rawMsg, isGroup);
-              const isOnline = !isGroup && onlineUserIds.includes(item.id); 
+              const isOnline = !isGroup && onlineUserIds.includes(item.id);
 
               return (
                 <div
@@ -1383,7 +1397,7 @@ export default function ChatPage() {
         `}
       >
         <div className="flex justify-end">
-          <LanguageSelector/>
+          <LanguageSelector />
           <ThemeToggle />
           <NotificationBar
             newNotfications={notification}
@@ -1518,7 +1532,7 @@ export default function ChatPage() {
                                 : "bg-muted text-foreground"
                             }`}
                           >
-                            <p
+                            <div
                               className={`text-sm break-words whitespace-pre-wrap flex flex-col ${
                                 message.isOwn ? "text-right" : "text-left"
                               }`}
@@ -1536,7 +1550,21 @@ export default function ChatPage() {
                                   ({t("message.edited")})
                                 </span>
                               )}
-                            </p>
+
+                              {/* single image */}
+                              {message.imageUrl && (
+                                <div className="mt-2">
+                                  <img
+                                    src={message.imageUrl}
+                                    alt="message image"
+                                    className="rounded-lg max-h-60 object-cover cursor-pointer hover:opacity-90 transition"
+                                    onClick={() =>
+                                      window.open(message.imageUrl, "_blank")
+                                    }
+                                  />
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {/* Options right beside the message bubble only */}
@@ -1645,45 +1673,79 @@ export default function ChatPage() {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
               >
-                <Input
-                  ref={chatInputBoxRef}
-                  value={newMessage}
-                  onChange={handleInputChange}
-                  onPaste={handlePaste}
-                  placeholder={
-                    editingMessageId
-                      ? `${t("chat.editingMessage")}...`
-                      : replyingToMessage
-                      ? `${t("common.reply")} ${replyingToMessage.senderName}...`
-                      : `${t("chat.typeMessage")} ${
-                          "username" in selectedUser
-                            ? selectedUser.username
-                            : selectedUser?.name || ""
-                        }...`
-                  }
-                  className="pr-10"
-                />
+                {/* Input Box */}
+                <div className="relative">
+                  <Input
+                    ref={chatInputBoxRef}
+                    value={newMessage}
+                    onChange={handleInputChange}
+                    onPaste={handlePaste}
+                    placeholder={
+                      editingMessageId
+                        ? `${t("chat.editingMessage")}...`
+                        : replyingToMessage
+                        ? `${t("common.reply")} ${
+                            replyingToMessage.senderName
+                          }...`
+                        : `${t("chat.typeMessage")} ${
+                            "username" in selectedUser
+                              ? selectedUser.username
+                              : selectedUser?.name || ""
+                          }...`
+                    }
+                    className="pr-10"
+                  />
 
-                {/* File Input Button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100 rounded-full"
-                >
-                  <Paperclip className="h-4 w-4 text-gray-500" />
-                </Button>
+                  {/* File Input Button */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100 rounded-full"
+                  >
+                    <Paperclip className="h-4 w-4 text-gray-500" />
+                  </Button>
 
-                {/* Hidden File Input */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
+                  {/* Hidden File Input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Image Previews */}
+                {pastedImages.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {pastedImages.map((img) => (
+                      <div
+                        key={img.id}
+                        className="relative w-20 h-20 rounded-md overflow-hidden border border-gray-300"
+                      >
+                        <img
+                          src={img.preview}
+                          alt={img.name}
+                          className="object-cover w-full h-full"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPastedImages((prev) =>
+                              prev.filter((i) => i.id !== img.id)
+                            )
+                          }
+                          className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-0.5 hover:bg-black/70"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Drag Overlay */}
                 {isDragOver && (

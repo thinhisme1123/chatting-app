@@ -23,8 +23,12 @@ export class AuthUseCases {
   async getCurrentUser() {
     return await this.authRepository.getCurrentUser();
   }
+
   async getAllUsers(currentUserId: string): Promise<User[] | null> {
     return this.authRepository.getAllUsers(currentUserId);
   }
 
+  async uploadImage(userId: string, file: File): Promise<string> {
+    return this.authRepository.uploadImage(userId, file);
+  }
 }

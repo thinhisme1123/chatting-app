@@ -3,7 +3,6 @@
 import { AuthUseCases } from "@/src/application/usecases/auth-use-cases.query";
 import { User as UserModel } from "@/src/domain/entities/User";
 import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
-import { useAuth } from "@/src/presentation/contexts/AuthContext";
 import {
   ArrowLeft,
   Calendar,
@@ -76,8 +75,6 @@ const Profile: React.FC = () => {
 
     setIsUploading(true);
 
-    const formData = new FormData();
-    formData.append("avatar", fileInputRef.current.files[0]);
     const userString = localStorage.getItem("user");
     if (!userString) {
       console.error("User not found in localStorage");
@@ -85,21 +82,9 @@ const Profile: React.FC = () => {
     }
 
     const user = JSON.parse(userString);
-    formData.append("userId", user.id);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/user/upload-avatar`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!response.ok) throw new Error("Upload failed");
-
-      const data = await response.json();
-      const imageUrl = data.imageUrl;
+      const imageUrl = await authUseCases.uploadImage(user.id, fileInputRef.current?.files?.[0]);
       toast.success("Cập nhật ảnh đại diện thành công!");
       setPreviewImage(null);
       setUser({ ...user, avatar: imageUrl });
@@ -115,6 +100,7 @@ const Profile: React.FC = () => {
       setIsUploading(false);
     }
   };
+
 
   const cancelImageUpload = () => {
     setPreviewImage(null);

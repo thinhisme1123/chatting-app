@@ -7,11 +7,13 @@ export interface GroupMessage {
   senderName: string;
   senderAvatar: string;
   content: string;
+  imageUrl?: string;
   timestamp: string | Date; 
   replyTo?: {
     id: string;
     content: string;
     senderName: string;
+    imageUrl?: string;
   };
   edited?: boolean;
 }

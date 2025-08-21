@@ -22,4 +22,5 @@ export interface IAuthRepository {
   logout(): Promise<void>
   getCurrentUser(): Promise<User | null>
   getAllUsers(currentUserId: string): Promise<User [] | null>
+  uploadImage(userId: string, file: File): Promise<string>
 }

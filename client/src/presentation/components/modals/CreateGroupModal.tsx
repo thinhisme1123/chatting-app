@@ -35,6 +35,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { AuthUseCases } from "@/src/application/usecases/auth-use-cases.query";
+import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
 
 interface Props {
   isOpen: boolean;
@@ -83,7 +85,7 @@ export const CreateGroupModal = ({
   friends,
   socket,
 }: Props) => {
-  const {t} = useLanguage()
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [groupName, setGroupName] = useState("");
   const [groupDescription, setGroupDescription] = useState("");
@@ -95,6 +97,7 @@ export const CreateGroupModal = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [groupAvatar, setGroupAvatar] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const authUseCases = new AuthUseCases(new AuthRepository());
 
   const toggleSelect = (id: string) => {
     setSelected((prev) =>
@@ -107,45 +110,29 @@ export const CreateGroupModal = ({
     setIsLoading(true);
 
     try {
-      let imageUrl: string | undefined;
-
       // Upload group avatar nếu có chọn ảnh
       if (groupAvatar) {
-        const formData = new FormData();
-        formData.append("avatar", groupAvatar);
-        formData.append("userId", user.id);
+        const imageUrl = await authUseCases.uploadImage(user.id, groupAvatar);
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/user/upload-avatar`,
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
+        // Tạo nhóm
+        const room = await chatRoomUseCase.createRoom({
+          name: groupName,
+          description: groupDescription,
+          creatorId: user.id,
+          memberIds: selected,
+          avatar: imageUrl,
+          theme: selectedTheme.name,
+        });
+        toast.success("Tạo nhóm thành công!");
 
-        if (!response.ok) throw new Error("Upload group avatar failed");
-        const data = await response.json();
-        imageUrl = data.imageUrl;
+        // Gửi socket cho thành viên
+        socket?.emit("group-created", {
+          roomId: room.id,
+          avatar: room.avatar,
+          name: room.name,
+          members: room.members,
+        });
       }
-
-      // Tạo nhóm
-      const room = await chatRoomUseCase.createRoom({
-        name: groupName,
-        description: groupDescription,
-        creatorId: user.id,
-        memberIds: selected,
-        avatar: imageUrl,
-        theme: selectedTheme.name,
-      });
-      toast.success("Tạo nhóm thành công!");
-
-      // Gửi socket cho thành viên
-      socket?.emit("group-created", {
-        roomId: room.id,
-        avatar: room.avatar,
-        name: room.name,
-        members: room.members,
-      });
 
       // Reset form
       setGroupName("");
@@ -337,7 +324,9 @@ export const CreateGroupModal = ({
                   </Label>
                   <Textarea
                     id="groupDescription"
-                    placeholder={t("createGroupModal.groupDescriptionPlaceholder")}
+                    placeholder={t(
+                      "createGroupModal.groupDescriptionPlaceholder"
+                    )}
                     value={groupDescription}
                     onChange={(e) => setGroupDescription(e.target.value)}
                     className="min-h-[80px] sm:min-h-[100px] resize-none border-2 focus:border-blue-400 transition-all duration-200"
@@ -485,7 +474,8 @@ export const CreateGroupModal = ({
                         {groupName || t("createGroupModal.defaultGroupName")}
                       </p>
                       <p className="text-xs sm:text-sm text-gray-500">
-                        {selected.length + 1} {t("createGroupModal.memberCount")}
+                        {selected.length + 1}{" "}
+                        {t("createGroupModal.memberCount")}
                       </p>
                     </div>
                   </div>
@@ -527,14 +517,22 @@ export const CreateGroupModal = ({
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span className="hidden sm:inline">{t("createGroupModal.creatingGroupFull")}</span>
-                      <span className="sm:hidden">{t("createGroupModal.creatingGroupShort")}</span>
+                      <span className="hidden sm:inline">
+                        {t("createGroupModal.creatingGroupFull")}
+                      </span>
+                      <span className="sm:hidden">
+                        {t("createGroupModal.creatingGroupShort")}
+                      </span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="mr-2 h-4 w-4" />
-                      <span className="hidden sm:inline">{t("createGroupModal.createGroupFull")}</span>
-                      <span className="sm:hidden">{t("createGroupModal.createGroupShort")}</span>
+                      <span className="hidden sm:inline">
+                        {t("createGroupModal.createGroupFull")}
+                      </span>
+                      <span className="sm:hidden">
+                        {t("createGroupModal.createGroupShort")}
+                      </span>
                     </>
                   )}
                 </Button>
