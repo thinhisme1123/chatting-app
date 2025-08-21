@@ -18,7 +18,7 @@ export class AuthRepository implements IAuthRepository {
   async login(request: LoginRequest): Promise<AuthResponse> {
     try {
       const response = await this.apiClient.post("/auth/login", request, {
-        withCredentials: true, // 
+        withCredentials: true, //
       });
 
       if (response.data.token) {
@@ -74,5 +74,32 @@ export class AuthRepository implements IAuthRepository {
       }
     );
     return response.data;
+  }
+
+  async uploadImage(userId: string, file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    formData.append("userId", userId);
+
+    try {
+      const response = await this.apiClient.post(
+        "/user/upload-avatar",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      // Axios already parses JSON for you
+      return response.data.imageUrl;
+    } catch (error: any) {
+      console.error(
+        "Upload avatar failed:",
+        error.response?.data || error.message
+      );
+      throw error;
+    }
   }
 }

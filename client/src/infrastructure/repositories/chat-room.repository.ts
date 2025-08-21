@@ -2,7 +2,7 @@ import { ChatRoom } from "@/src/domain/entities/ChatRoom";
 import { CreateRoomInput } from "@/src/domain/entities/CreateRoomInput";
 import { AxiosInstance } from "axios";
 import { ApiClient } from "../api/ApiClient";
-import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
+import { GroupMessage } from "@/src/domain/entities/GroupMessage";
 import { IChatRoomRepository } from "@/src/domain/interfaces/IChatRoomRepository";
 
 export class ChatRoomRepository implements IChatRoomRepository {

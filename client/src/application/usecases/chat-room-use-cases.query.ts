@@ -1,7 +1,7 @@
 import { ChatRoom } from "@/src/domain/entities/ChatRoom";
 import { ChatRoomRepository } from "./../../infrastructure/repositories/chat-room.repository";
 import { CreateRoomInput } from "@/src/domain/entities/CreateRoomInput";
-import { GroupMessage } from "@/src/domain/entities/GroupMessageEnity";
+import { GroupMessage } from "@/src/domain/entities/GroupMessage";
 
 export class ChatRoomUseCase {
   constructor(private readonly repo: ChatRoomRepository) {}
