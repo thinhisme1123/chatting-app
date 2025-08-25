@@ -31,4 +31,8 @@ export class AuthUseCases {
   async uploadImage(userId: string, file: File): Promise<string> {
     return this.authRepository.uploadImage(userId, file);
   }
+
+  async uploadImageMessage(userId: string, file: File): Promise<string> {
+    return this.authRepository.uploadImageMessage(userId, file);
+  }
 }

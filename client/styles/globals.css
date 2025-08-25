@@ -93,3 +93,13 @@ body {
   }
 }
 
+.highlight-message {
+  animation: highlightFlash 2s ease-in-out;
+}
+
+@keyframes highlightFlash {
+  0%   { background-color: rgba(59, 130, 246, 0.3); } /* blue-500/30 */
+  100% { background-color: transparent; }
+}
+
+

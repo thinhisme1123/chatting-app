@@ -102,4 +102,33 @@ export class AuthRepository implements IAuthRepository {
       throw error;
     }
   }
+
+  async uploadImageMessage(userId: string, file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    formData.append("userId", userId);
+
+    try {
+      const response = await this.apiClient.post(
+        "/user/upload-image-message",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      // Axios already parses JSON for you
+      return response.data.imageUrl;
+    } catch (error: any) {
+      console.error(
+        "Upload avatar failed:",
+        error.response?.data || error.message
+      );
+      throw error;
+    }
+  }
 }
+
+
