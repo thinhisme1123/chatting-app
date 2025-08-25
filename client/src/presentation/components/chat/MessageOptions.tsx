@@ -16,8 +16,9 @@ interface MessageOptionsProps {
   messageContent: string;
   senderName: string;
   isOwn: boolean;
+  imageUrl: string;
   onEdit: (messageId: string, content: string) => void;
-  onReply: (messageId: string, senderName: string, content: string) => void;
+  onReply: (messageId: string, senderName: string, content: string, imageUrl: string) => void;
   onCopy: (messageId: string, content: string) => void;
 }
 
@@ -25,6 +26,7 @@ export const MessageOptions: React.FC<MessageOptionsProps> = ({
   messageId,
   senderName,
   messageContent,
+  imageUrl,
   isOwn,
   onEdit,
   onReply,
@@ -38,7 +40,7 @@ export const MessageOptions: React.FC<MessageOptionsProps> = ({
   };
 
   const handleReply = () => {
-    onReply(messageId, senderName, messageContent);
+    onReply(messageId, senderName, messageContent, imageUrl);
 
     setTimeout(() => {
       setIsOpen(false);

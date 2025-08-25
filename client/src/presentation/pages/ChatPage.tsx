@@ -104,6 +104,7 @@ export default function ChatPage() {
     id: string;
     senderName: string;
     content: string;
+    imageUrl: string;
   } | null>(null);
 
   // search friend input box
@@ -192,6 +193,11 @@ export default function ChatPage() {
     return () => {
       // Always clean up to avoid duplicate listenersPhone
       globalSocket.off("call:incoming");
+      messages.forEach((msg) => {
+        if (msg.imageUrl?.startsWith("blob:")) {
+          URL.revokeObjectURL(msg.imageUrl);
+        }
+      });
     };
   }, []);
 
@@ -339,12 +345,13 @@ export default function ChatPage() {
   const handleReplyToMessage = (
     messageId: string,
     senderName: string,
-    content: string
+    content: string,
+    imageUrl: string
   ) => {
     //handle focus message input box
     setEditingMessageId(null);
     setEditingMessageContent("");
-    setReplyingToMessage({ id: messageId, senderName, content });
+    setReplyingToMessage({ id: messageId, senderName, content, imageUrl });
     chatInputBoxRef.current?.focus();
   };
 
@@ -535,7 +542,7 @@ export default function ChatPage() {
         const message = await chatUseCases.getLastMessage(user.id, userItem.id);
 
         newMessagesMap[userItem.id] = {
-          content: message?.content || t("chat.noMessageYet"),
+          content: message?.content || "",
           timestamp: message?.timestamp
             ? new Date(message.timestamp).toISOString()
             : new Date().toISOString(),
@@ -549,7 +556,7 @@ export default function ChatPage() {
       }
     }
 
-    setLastMessages(newMessagesMap);
+    setLastMessages((prev) => ({ ...prev, ...newMessagesMap }));
   };
 
   // fetching group last message
@@ -566,7 +573,7 @@ export default function ChatPage() {
         const msg = await chatRoomUseCases.getGroupLastMessage(room.id);
 
         newMap[room.id] = {
-          content: msg?.content || t("chat.noMessageYet"),
+          content: msg?.content || "",
           timestamp: msg?.timestamp
             ? new Date(msg.timestamp).toISOString()
             : new Date().toISOString(),
@@ -629,7 +636,11 @@ export default function ChatPage() {
   // Socket event handlers
   useEffect(() => {
     if (!user || !socket) return;
-
+    setTimeout(() => {
+      document
+        .querySelector("#chat-end")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
     socket.emit("register-user", user.id);
 
     // Nhận tin nhắn realtime
@@ -1127,68 +1138,112 @@ export default function ChatPage() {
       return;
     }
 
-    const imageUrl = await authUseCases.uploadImage(
-      user.id,
-      pastedImages[0].file
-    );
+    // Generate temporary message ID
+    const tempMessageId = `temp_${Date.now()}_${Math.random()}`;
 
-    const message = {
+    // Create temporary image URL if image exists
+    const tempImageUrl = pastedImages[0]
+      ? URL.createObjectURL(pastedImages[0].file)
+      : null;
+
+    const tempMessage = {
+      id: tempMessageId, // Add temporary ID
       senderId: user.id,
       senderName: user.username,
       content: newMessage,
       timestamp: new Date(),
-      imageUrl: imageUrl,
+      imageUrl: tempImageUrl, // Use temporary URL
       isOwn: true,
       replyTo: replyingToMessage || undefined,
+      uploading: !!pastedImages[0], // Flag to show loading state
     };
 
-    setMessages((prev) => [...prev, message]);
+    // Add message to UI immediately
+    setMessages((prev) => [...prev, tempMessage]);
 
+    // Scroll to bottom immediately
     setTimeout(() => {
       document
         .querySelector("#chat-end")
         ?.scrollIntoView({ behavior: "smooth" });
     }, 50);
 
-    if (isGroup) {
-      socket.emit("send-group-message", {
-        roomId: selectedUser.id,
-        content: newMessage,
-        fromUserId: user.id,
-        senderName: user.username,
-        imageUrl: imageUrl,
-        senderAvatar: user.avatar,
-        timestamp: new Date(),
-        replyTo: replyingToMessage || undefined,
-      });
-      socket.emit("group-stop-typing", {
-        roomId: selectedUser.id,
-        userId: user.id,
-      });
-      updateLastMessage(selectedUser.id, true);
-    } else {
-      socket.emit("send-message", {
-        fromUserId: user.id,
-        toUserId: selectedUser.id,
-        senderName: user.username,
-        imageUrl: imageUrl,
-        senderAvatar: user.avatar,
-        message: newMessage,
-        replyTo: replyingToMessage || undefined,
-      });
-      socket.emit("stop-typing", {
-        userId: user.id,
-        toUserId: selectedUser.id,
-      });
-      updateLastMessage(selectedUser.id, false);
-    }
+    // Clear form state immediately for better UX
+    const messageContent = newMessage;
+    const replyMessage = replyingToMessage;
+    const imageFile = pastedImages[0];
 
+    setNewMessage("");
+    setReplyingToMessage(null);
+    setPastedImages([]);
     setIsTyping(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    setNewMessage("");
-    setReplyingToMessage(null); // ✅ Clear reply after send
-    setPastedImages([]);
+    try {
+      // Upload image in background if exists
+      let finalImageUrl: string = "";
+      if (imageFile) {
+        finalImageUrl = await authUseCases.uploadImageMessage(
+          user.id,
+          imageFile.file
+        );
+
+        // Update the message with real image URL
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempMessageId
+              ? { ...msg, imageUrl: finalImageUrl, uploading: false }
+              : msg
+          )
+        );
+      }
+
+      // Send to server with final image URL
+      if (isGroup) {
+        console.log(finalImageUrl);
+
+        socket.emit("send-group-message", {
+          roomId: selectedUser.id,
+          content: messageContent,
+          fromUserId: user.id,
+          senderName: user.username,
+          imageUrl: finalImageUrl,
+          senderAvatar: user.avatar,
+          timestamp: tempMessage.timestamp,
+          replyTo: replyMessage || undefined,
+        });
+        socket.emit("group-stop-typing", {
+          roomId: selectedUser.id,
+          userId: user.id,
+        });
+        updateLastMessage(selectedUser.id, true);
+      } else {
+        socket.emit("send-message", {
+          fromUserId: user.id,
+          toUserId: selectedUser.id,
+          senderName: user.username,
+          imageUrl: finalImageUrl,
+          senderAvatar: user.avatar,
+          message: messageContent,
+          replyTo: replyMessage || undefined,
+        });
+        socket.emit("stop-typing", {
+          userId: user.id,
+          toUserId: selectedUser.id,
+        });
+        updateLastMessage(selectedUser.id, false);
+      }
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      // Handle error - maybe show retry option or remove the message
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempMessageId
+            ? { ...msg, uploadError: true, uploading: false }
+            : msg
+        )
+      );
+    }
   };
 
   // Loading state
@@ -1474,9 +1529,10 @@ export default function ChatPage() {
                     </div>
                   </div>
                 ) : (
-                  messages.map((message, index) => (
+                  messages.map((message) => (
                     <div
-                      key={index}
+                      key={message.id}
+                      id={`message-${message.id}`}
                       className={`flex gap-3 ${
                         message.isOwn ? "flex-row-reverse" : ""
                       }`}
@@ -1503,18 +1559,53 @@ export default function ChatPage() {
                         {/* Reply Preview */}
                         {message.replyTo && (
                           <div
-                            className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 ${
+                            className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 cursor-pointer ${
                               message.isOwn
                                 ? "border-blue-500"
                                 : "border-gray-400"
                             }`}
+                            onClick={() => {
+                              const el = document.getElementById(
+                                `message-${message.replyTo.id}`
+                              );
+                              if (el) {
+                                el.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "center",
+                                });
+                                el.classList.add("highlight-message"); // temporary highlight
+                                setTimeout(
+                                  () =>
+                                    el.classList.remove("highlight-message"),
+                                  2000
+                                );
+                              }
+                            }}
                           >
-                            <p className="text-sm font-semibold text-gray-700 leading-tight ">
+                            {/* Sender Name */}
+                            <p className="text-sm font-semibold text-gray-700 leading-tight">
                               {message.replyTo.senderName}
                             </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {message.replyTo.content}
-                            </p>
+
+                            {/* Content or Image */}
+                            {message.replyTo.imageUrl ? (
+                              <div className="mt-1 flex items-center space-x-2">
+                                <img
+                                  src={message.replyTo.imageUrl}
+                                  alt="reply preview"
+                                  className="w-12 h-12 object-cover rounded-md border"
+                                />
+                                {message.replyTo.content && (
+                                  <p className="text-xs text-gray-500 truncate max-w-[120px]">
+                                    {message.replyTo.content}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-500 truncate">
+                                {message.replyTo.content}
+                              </p>
+                            )}
                           </div>
                         )}
 
@@ -1573,6 +1664,7 @@ export default function ChatPage() {
                             messageContent={message.content}
                             senderName={message.senderName}
                             isOwn={message.isOwn}
+                            imageUrl={message.imageUrl}
                             onEdit={handleEditMessage}
                             onReply={handleReplyToMessage}
                             onCopy={handleCopyMessage}
