@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AuthUseCases } from "@/src/application/usecases/auth-use-cases.query";
 import { ChatRoomUseCase } from "@/src/application/usecases/chat-room-use-cases.query";
 import { ChatUseCases } from "@/src/application/usecases/chat-use-cases.query";
 import { FriendUseCases } from "@/src/application/usecases/friend-user-cases.query";
@@ -16,12 +17,16 @@ import {
   FriendRequestNotification,
 } from "@/src/domain/entities/Notifications";
 import { User } from "@/src/domain/entities/User";
+import { useWebRTC } from "@/src/hooks/useWebRTC";
+import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
 import { ChatRoomRepository } from "@/src/infrastructure/repositories/chat-room.repository";
 import { ChatRepository } from "@/src/infrastructure/repositories/chat.repository";
 import { FriendRepository } from "@/src/infrastructure/repositories/friend.repository";
 import { callSocket } from "@/src/sockets/callSocket";
 import { playNotificationSound } from "@/src/utils/playNotificationSound";
+import { playRingingCall } from "@/src/utils/playRingingCall";
 import { truncate } from "@/src/utils/truncateText";
+import { AvatarFallback } from "@radix-ui/react-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,25 +53,21 @@ import Link from "next/link";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
+import { socket as globalSocket } from "../../sockets/baseSocket";
+import { ActiveCallModal } from "../components/call/ActiveCallModal";
+import { IncomingCallModal } from "../components/call/IncomingCallModal";
+import { OutgoingCallModal } from "../components/call/OutgoingCallModal";
 import { MessageOptions } from "../components/chat/MessageOptions";
 import { NotificationBar } from "../components/chat/NotificationBar";
 import { AddFriendModal } from "../components/modals/AddFriendModal";
 import { CreateGroupModal } from "../components/modals/CreateGroupModal";
+import { LanguageSelector } from "../components/parts/LanguageSelector";
+import ScrollToBottomButton from "../components/parts/ScrollToBottomButton";
+import { ThemeToggle } from "../components/parts/ThemeToggle";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
-import { useWebRTC } from "@/src/hooks/useWebRTC";
-import { IncomingCallModal } from "../components/call/IncomingCallModal";
-import { socket as globalSocket } from "../../sockets/baseSocket";
-import { playRingingCall } from "@/src/utils/playRingingCall";
-import { OutgoingCallModal } from "../components/call/OutgoingCallModal";
-import { ActiveCallModal } from "../components/call/ActiveCallModal";
-import { ThemeToggle } from "../components/parts/ThemeToggle";
-import { AvatarFallback } from "@radix-ui/react-avatar";
-import { LanguageSelector } from "../components/parts/LanguageSelector";
 import { useLanguage } from "../contexts/LanguageContext";
-import { AuthUseCases } from "@/src/application/usecases/auth-use-cases.query";
-import { AuthRepository } from "@/src/infrastructure/repositories/auth.repository";
 
 export default function ChatPage() {
   const { t } = useLanguage();
@@ -74,7 +75,6 @@ export default function ChatPage() {
   const [selectedUser, setSelectedUser] = useState<User | ChatRoom | null>(
     null
   );
-
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const { user, logout } = useAuth();
@@ -134,6 +134,10 @@ export default function ChatPage() {
     Record<string, LastMessageInfo>
   >({});
 
+  // handle scroll to the bottom when scoll in messages area
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
   const [showCreateModal, setIsCreateGroupModalOpen] = useState(false);
   const [friends, setFriends] = useState<User[]>([]);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
@@ -183,15 +187,12 @@ export default function ChatPage() {
   useEffect(() => {
     setIsClient(true);
     callSocket.onIncomingCall((data: any) => {
-      console.log(data);
-
       setRole("callee");
       setIncomingCall(data);
       playRingingCall();
     });
 
     return () => {
-      // Always clean up to avoid duplicate listenersPhone
       globalSocket.off("call:incoming");
       messages.forEach((msg) => {
         if (msg.imageUrl?.startsWith("blob:")) {
@@ -199,7 +200,7 @@ export default function ChatPage() {
         }
       });
     };
-  }, []);
+  }, [messages]);
 
   const setUserHasNewMessage = (id: string) => {
     setNewMessageUserIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
@@ -992,6 +993,27 @@ export default function ChatPage() {
     if (el) {
       el.scrollIntoView({ behavior: "auto" });
     }
+
+    if (!scrollRef.current) return;
+
+    const viewport = scrollRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    ) as HTMLElement | null;
+
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      const isAtBottom =
+        viewport.scrollHeight - viewport.scrollTop <=
+        viewport.clientHeight + 10;
+      setShowScrollBtn(!isAtBottom);
+    };
+
+    viewport.addEventListener("scroll", handleScroll);
+
+    return () => {
+      viewport.removeEventListener("scroll", handleScroll);
+    };
   }, [messages]);
 
   //handle search friends
@@ -1519,7 +1541,10 @@ export default function ChatPage() {
             </div>
 
             {/* Messages Area */}
-            <ScrollArea className={`flex-1 p-4 ${isMobile ? "mt-6" : ""}`}>
+            <ScrollArea
+              ref={scrollRef}
+              className={`flex-1 p-4 ${isMobile ? "mt-6" : ""}`}
+            >
               <div className="space-y-4">
                 {isLoadingMessage ? (
                   <div className=" flex items-center justify-center">
@@ -1532,7 +1557,6 @@ export default function ChatPage() {
                   messages.map((message) => (
                     <div
                       key={message.id}
-                      id={`message-${message.id}`}
                       className={`flex gap-3 ${
                         message.isOwn ? "flex-row-reverse" : ""
                       }`}
@@ -1573,7 +1597,7 @@ export default function ChatPage() {
                                   behavior: "smooth",
                                   block: "center",
                                 });
-                                el.classList.add("highlight-message"); // temporary highlight
+                                el.classList.add("highlight-message");
                                 setTimeout(
                                   () =>
                                     el.classList.remove("highlight-message"),
@@ -1617,6 +1641,7 @@ export default function ChatPage() {
                         >
                           {/* Message Bubble */}
                           <div
+                            id={`message-${message.id}`}
                             className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
                               message.isOwn
                                 ? "bg-primary text-primary-foreground"
@@ -1670,7 +1695,7 @@ export default function ChatPage() {
                             onCopy={handleCopyMessage}
                           />
                         </div>
-                        <p className="text-sm text-foreground">
+                        <p className="text-xs text-foreground">
                           {new Date(message.timestamp)
                             .toLocaleString("en-GB", {
                               day: "2-digit",
@@ -1686,6 +1711,7 @@ export default function ChatPage() {
                     </div>
                   ))
                 )}
+
                 {typingUserName && (
                   <TypingIndicator
                     username={typingUserName}
@@ -1700,7 +1726,7 @@ export default function ChatPage() {
                 <div id="chat-end" />
               </div>
             </ScrollArea>
-
+            {showScrollBtn && <ScrollToBottomButton />}
             {/* Reply Preview */}
             {replyingToMessage && (
               <div className="border-t bg-gray-50 p-3">
