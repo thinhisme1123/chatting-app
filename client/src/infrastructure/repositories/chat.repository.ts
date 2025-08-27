@@ -2,6 +2,7 @@ import { type AxiosInstance } from "axios";
 import type { Message } from "../../domain/entities/Message";
 import type { IChatRepository } from "../../domain/interfaces/IChatRepository";
 import { ApiClient } from "../api/ApiClient";
+import { socket } from "@/src/sockets/baseSocket";
 
 export class ChatRepository implements IChatRepository {
   private readonly apiClient: AxiosInstance;
@@ -9,7 +10,6 @@ export class ChatRepository implements IChatRepository {
   constructor() {
     this.apiClient = new ApiClient().instance;
   }
-
   async getMessages(conversationId: string): Promise<Message[]> {
     const response = await this.apiClient.get(
       `/conversations/${conversationId}/messages`
@@ -46,12 +46,21 @@ export class ChatRepository implements IChatRepository {
     return response.data;
   }
 
-  async editMessage(id: string, content: string): Promise<Message> {
-    const res = await fetch(`/messages/edit/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ content }),
-      headers: { "Content-Type": "application/json" },
+  async editMessage(messageId: string, content: string): Promise<Message> {
+    const response = await this.apiClient.put(`/messages/${messageId}`, {
+      content,
     });
-    return await res.json();
+    return response.data;
+  }
+
+  async deleteMessage(
+    messageId: string,
+    isGroup: boolean,
+    targetId: string
+  ): Promise<Message> {
+    const response = await this.apiClient.delete(`/messages/delete/${messageId}`, {
+      data: { isGroup, targetId },
+    });
+    return response.data;
   }
 }

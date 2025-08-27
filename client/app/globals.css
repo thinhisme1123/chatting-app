@@ -309,6 +309,7 @@
   color: hsl(0 0% 98%);
 }
 
+/* hightligh message when click reply message */
 .highlight-message {
   animation: flashHighlight 0.8s ease-in-out 3;
 }
@@ -323,4 +324,18 @@
   50% {
     box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.9);
   }
+}
+
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
+}
+
+.animate-toast-progress {
+  animation: toast-progress 3s linear forwards;
 }

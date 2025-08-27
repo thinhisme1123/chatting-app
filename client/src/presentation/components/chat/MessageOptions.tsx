@@ -8,8 +8,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Edit3, Reply, Copy } from "lucide-react";
+import { MoreVertical, Edit3, Reply, Copy, Delete } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface MessageOptionsProps {
   messageId: string;
@@ -17,8 +19,14 @@ interface MessageOptionsProps {
   senderName: string;
   isOwn: boolean;
   imageUrl: string;
+  onDelete: (messageid: string) => void;
   onEdit: (messageId: string, content: string) => void;
-  onReply: (messageId: string, senderName: string, content: string, imageUrl: string) => void;
+  onReply: (
+    messageId: string,
+    senderName: string,
+    content: string,
+    imageUrl: string
+  ) => void;
   onCopy: (messageId: string, content: string) => void;
 }
 
@@ -28,11 +36,13 @@ export const MessageOptions: React.FC<MessageOptionsProps> = ({
   messageContent,
   imageUrl,
   isOwn,
+  onDelete,
   onEdit,
   onReply,
   onCopy,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const { t } = useLanguage();
 
   const handleEdit = () => {
     onEdit(messageId, messageContent);
@@ -77,28 +87,40 @@ export const MessageOptions: React.FC<MessageOptionsProps> = ({
         }}
       >
         {isOwn && (
-          <DropdownMenuItem
-            onClick={handleEdit}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <Edit3 className="h-4 w-4" />
-            <span>Chỉnh sửa</span>
-          </DropdownMenuItem>
+          <div>
+            <DropdownMenuItem
+              onClick={handleEdit}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Edit3 className="h-4 w-4" />
+              <span>{t("common.edit")}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onDelete(messageId)}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Delete className="h-4 w-4" />
+              <span>{t("common.delete")}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator/>
+          </div>
         )}
+        
+        {/* i want to have devider here */}
         <DropdownMenuItem
           onMouseDown={(e) => e.preventDefault()}
           onClick={handleReply}
           className="flex items-center gap-2 cursor-pointer"
         >
           <Reply className="h-4 w-4" />
-          <span>Trả lời</span>
+          <span>{t("common.reply")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={handleCopy}
           className="flex items-center gap-2 cursor-pointer"
         >
           <Copy className="h-4 w-4" />
-          <span>Sao chép</span>
+          <span>{t("common.copy")}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

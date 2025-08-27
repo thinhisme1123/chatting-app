@@ -6,4 +6,5 @@ export interface IChatRepository {
   sendMessage(conversationId: string, content: string): Promise<Message>;
   getMessageHistory(userId: string, selectedUserId: string): Promise<Message[]>;
   editMessage(id: string, content: string): Promise<Message>
+  deleteMessage(id: string, isGroup: boolean, selectUserId: string): void
 }

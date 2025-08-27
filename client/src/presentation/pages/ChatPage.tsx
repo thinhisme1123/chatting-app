@@ -68,6 +68,7 @@ import { ThemeToggle } from "../components/parts/ThemeToggle";
 import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
+import { ProgressToast } from "../components/parts/ProgressToast";
 
 export default function ChatPage() {
   const { t } = useLanguage();
@@ -333,6 +334,43 @@ export default function ChatPage() {
       }
     } catch (err) {
       console.error("Error updating last message:", err);
+    }
+  };
+  const handleDeleteMessage = async (messageId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    if (selectedUser) {
+      const isGroup = "members" in selectedUser;
+      try {
+        await chatUseCases.deleteMessage(
+          messageId,
+          isGroup,
+          selectedUser?.id as string
+        );
+
+        toast.custom(
+          () => (
+            <ProgressToast
+              message="Message deleted successfully"
+              type="success"
+            />
+          ),
+          { duration: 3000 }
+        );
+      } catch (err) {
+
+        // Rollback if backend delete fails
+        setMessages((prev) => [
+          ...prev,
+          messages.find((m) => m.id === messageId)!,
+        ]);
+
+        toast.custom(
+          () => (
+            <ProgressToast message="Failed to delete message ❌" type="error" />
+          ),
+          { duration: 3000 }
+        );
+      }
     }
   };
 
@@ -1690,6 +1728,7 @@ export default function ChatPage() {
                             senderName={message.senderName}
                             isOwn={message.isOwn}
                             imageUrl={message.imageUrl}
+                            onDelete={handleDeleteMessage}
                             onEdit={handleEditMessage}
                             onReply={handleReplyToMessage}
                             onCopy={handleCopyMessage}
