@@ -23,4 +23,12 @@ export class ChatUseCases {
   async editMessage(id: string, content: string): Promise<Message> {
     return this.chatRepository.editMessage(id, content);
   }
+
+  async deleteMessage(
+    id: string,
+    isGroup: boolean,
+    selectUserId: string
+  ) {
+    this.chatRepository.deleteMessage(id, isGroup, selectUserId);
+  }
 }
