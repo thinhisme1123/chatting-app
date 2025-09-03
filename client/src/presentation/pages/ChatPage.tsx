@@ -69,6 +69,7 @@ import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { ProgressToast } from "../components/parts/ProgressToast";
+import { decodeMessage } from "@/src/utils/decode-message";
 
 export default function ChatPage() {
   const { t } = useLanguage();
@@ -357,7 +358,6 @@ export default function ChatPage() {
           { duration: 3000 }
         );
       } catch (err) {
-
         // Rollback if backend delete fails
         setMessages((prev) => [
           ...prev,
@@ -1396,8 +1396,12 @@ export default function ChatPage() {
               const displayName = isGroup ? item.name : item.username;
               const avatar = item.avatar || "/images/user-placeholder.jpg";
               const hasNew = newMessageUserIds.includes(item.id);
-              const rawMsg =
-                lastMessages[item.id]?.content || t("chat.noMessageYet");
+              const encodedMsg = lastMessages[item.id]?.content;
+
+              const rawMsg = encodedMsg
+                ? decodeMessage(encodedMsg) // decode UTF-8 safe
+                : t("chat.noMessageYet");
+
               const lastMsg = truncate(rawMsg, isGroup);
               const isOnline = !isGroup && onlineUserIds.includes(item.id);
 
@@ -1691,7 +1695,7 @@ export default function ChatPage() {
                                 message.isOwn ? "text-right" : "text-left"
                               }`}
                             >
-                              {message.content}
+                              {decodeMessage(message.content)}
 
                               {message.edited && (
                                 <span
