@@ -8,9 +8,15 @@ import { Button } from "@/components/ui/button";
 import { MessageCircle, Users, Zap, Shield, Heart } from "lucide-react";
 import ChatPage from "@/src/presentation/pages/ChatPage";
 import { ErrorBoundary } from "react-error-boundary";
+import { useLanguage } from "@/src/presentation/contexts/LanguageContext";
+import { ForgetPassForm } from "@/src/presentation/components/auth/ForgetPassForm";
 
 function AuthPageContent() {
-  const [isLogin, setIsLogin] = useState(true);
+  // const [isLogin, setIsLogin] = useState(true);
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">(
+    "login"
+  );
+  const { t } = useLanguage();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex">
@@ -32,7 +38,7 @@ function AuthPageContent() {
             </div>
             <div>
               <h1 className="text-3xl font-bold">ChatApp</h1>
-              <p className="text-blue-100">Kết nối mọi lúc, mọi nơi</p>
+              <p className="text-blue-100">{t("slogan")}</p>
             </div>
           </div>
 
@@ -44,11 +50,9 @@ function AuthPageContent() {
               </div>
               <div>
                 <h3 className="text-xl font-semibold">
-                  Tin nhắn thời gian thực
+                  {t("features.realtime")}
                 </h3>
-                <p className="text-blue-100">
-                  Trò chuyện ngay lập tức với bạn bè
-                </p>
+                <p className="text-blue-100">{t("features.realtimeDesc")}</p>
               </div>
             </div>
 
@@ -57,10 +61,10 @@ function AuthPageContent() {
                 <Users className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold">Chat nhóm</h3>
-                <p className="text-blue-100">
-                  Tạo nhóm và trò chuyện cùng nhiều người
-                </p>
+                <h3 className="text-xl font-semibold">
+                  {t("features.groupChat")}
+                </h3>
+                <p className="text-blue-100">{t("features.groupChatDesc")}</p>
               </div>
             </div>
 
@@ -69,8 +73,10 @@ function AuthPageContent() {
                 <Shield className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-xl font-semibold">Bảo mật cao</h3>
-                <p className="text-blue-100">Tin nhắn được mã hóa an toàn</p>
+                <h3 className="text-xl font-semibold">
+                  {t("features.security")}
+                </h3>
+                <p className="text-blue-100">{t("features.securityDesc")}</p>
               </div>
             </div>
           </div>
@@ -79,15 +85,15 @@ function AuthPageContent() {
           <div className="grid grid-cols-3 gap-6">
             <div className="text-center">
               <div className="text-2xl font-bold">10K+</div>
-              <div className="text-blue-100 text-sm">Người dùng</div>
+              <div className="text-blue-100 text-sm">{t("stats.users")}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">1M+</div>
-              <div className="text-blue-100 text-sm">Tin nhắn</div>
+              <div className="text-blue-100 text-sm">{t("stats.messages")}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">99.9%</div>
-              <div className="text-blue-100 text-sm">Uptime</div>
+              <div className="text-blue-100 text-sm">{t("stats.uptime")}</div>
             </div>
           </div>
         </div>
@@ -102,31 +108,39 @@ function AuthPageContent() {
               <MessageCircle className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">ChatApp</h1>
-            <p className="text-gray-600">Kết nối mọi lúc, mọi nơi</p>
+            <p className="text-gray-600">{t("slogan")}</p>
           </div>
 
           {/* Auth Form */}
-          {isLogin ? <LoginForm /> : <RegisterForm />}
+          {authMode === "login" && (
+            <LoginForm onForgotPassword={() => setAuthMode("forgot")} />
+          )}
+          {authMode === "register" && <RegisterForm />}
+          {authMode === "forgot" && (
+            <ForgetPassForm onBackToLogin={() => setAuthMode("login")} />
+          )}
 
           {/* Toggle Button */}
           <div className="mt-6 text-center">
-            <Button
-              variant="ghost"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-gray-600 hover:text-gray-900 font-medium"
-            >
-              {isLogin ? (
-                <>
-                  Chưa có tài khoản?{" "}
-                  <span className="text-blue-600 ml-1">Đăng ký ngay</span>
-                </>
-              ) : (
-                <>
-                  Đã có tài khoản?{" "}
-                  <span className="text-blue-600 ml-1">Đăng nhập</span>
-                </>
-              )}
-            </Button>
+            {authMode === "login" ? (
+              <Button
+                variant="ghost"
+                onClick={() => setAuthMode("register")}
+                className="text-gray-600 hover:text-gray-900 font-medium"
+              >
+                Chưa có tài khoản?{" "}
+                <span className="text-blue-600 ml-1">Đăng ký ngay</span>
+              </Button>
+            ) : authMode === "register" ? (
+              <Button
+                variant="ghost"
+                onClick={() => setAuthMode("login")}
+                className="text-gray-600 hover:text-gray-900 font-medium"
+              >
+                Đã có tài khoản?{" "}
+                <span className="text-blue-600 ml-1">Đăng nhập</span>
+              </Button>
+            ) : null}
           </div>
 
           {/* Footer */}
@@ -144,16 +158,17 @@ function AuthPageContent() {
 
 export default function HomePage() {
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang tải...</p>
+          <p className="mt-4 text-gray-600">{t("commom.loading")}</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!user) {

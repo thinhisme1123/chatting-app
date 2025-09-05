@@ -151,5 +151,16 @@
     "creatingGroupShort": "作成中...",
     "createGroupFull": "今すぐグループを作成！",
     "createGroupShort": "作成！"
-  }
+  },
+  "features": {
+    "realtime": "リアルタイムメッセージ",
+    "groupChat": "グループチャット",
+    "security": "高いセキュリティ"
+  },
+  "stats": {
+    "users": "ユーザー",
+    "messages": "メッセージ",
+    "uptime": "稼働率"
+  },
+  "slogan": "いつでもどこでもつながる"
 }

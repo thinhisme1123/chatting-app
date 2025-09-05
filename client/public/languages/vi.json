@@ -151,5 +151,16 @@
     "creatingGroupShort": "Đang tạo...",
     "createGroupFull": "Tạo nhóm ngay!",
     "createGroupShort": "Tạo nhóm!"
-  }
+  },
+  "features": {
+    "realtime": "Tin nhắn thời gian thực",
+    "groupChat": "Chat nhóm",
+    "security": "Bảo mật cao"
+  },
+  "stats": {
+    "users": "Người dùng",
+    "messages": "Tin nhắn",
+    "uptime": "Thời gian hoạt động"
+  },
+  "slogan": "Kết nối mọi lúc, mọi nơi"
 }
