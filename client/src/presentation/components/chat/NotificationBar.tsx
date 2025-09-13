@@ -188,6 +188,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
             ) : (
               notifications.map((notification) => {
                 if (notification.type === "friend-request") {
+                  
                   return (
                     <DropdownMenuItem
                       key={notification.id}
@@ -211,9 +212,8 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                           alt={notification.fromUser.username}
                         />
                         <AvatarFallback>
-                          {notification.fromUser.username
-                            .charAt(0)
-                            .toUpperCase()}
+                          {notification.fromUser?.username?.[0]?.toUpperCase() ||
+                            "?"}
                         </AvatarFallback>
                       </Avatar>
 
@@ -269,7 +269,8 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                           alt={notification.sender.username}
                         />
                         <AvatarFallback>
-                          {notification.sender.username.charAt(0).toUpperCase()}
+                          {notification.sender?.username?.[0]?.toUpperCase() ||
+                            "?"}
                         </AvatarFallback>
                       </Avatar>
 
@@ -323,7 +324,7 @@ export const NotificationBar: React.FC<NotificationBarProps> = ({
                           alt={notification.username}
                         />
                         <AvatarFallback>
-                          {notification.username.charAt(0).toUpperCase()}
+                          {notification.username?.[0]?.toUpperCase() || "?"}
                         </AvatarFallback>
                       </Avatar>
 

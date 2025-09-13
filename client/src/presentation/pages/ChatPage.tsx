@@ -692,6 +692,8 @@ export default function ChatPage() {
         ...data,
         isOwn,
       };
+      console.log(data.newMessage);
+      
 
       // 👥 Tin nhắn nhóm
       if (isGroupMessage) {
@@ -1260,8 +1262,6 @@ export default function ChatPage() {
 
       // Send to server with final image URL
       if (isGroup) {
-        console.log(finalImageUrl);
-
         socket.emit("send-group-message", {
           roomId: selectedUser.id,
           content: messageContent,
@@ -1278,6 +1278,7 @@ export default function ChatPage() {
         });
         updateLastMessage(selectedUser.id, true);
       } else {
+
         socket.emit("send-message", {
           fromUserId: user.id,
           toUserId: selectedUser.id,
