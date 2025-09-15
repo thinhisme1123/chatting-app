@@ -162,5 +162,6 @@
     "messages": "Tin nhắn",
     "uptime": "Thời gian hoạt động"
   },
-  "slogan": "Kết nối mọi lúc, mọi nơi"
+  "slogan": "Kết nối mọi lúc, mọi nơi",
+  "loading": "Đang tải..."
 }
