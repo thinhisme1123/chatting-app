@@ -189,15 +189,6 @@ export default function ChatPage() {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-  if (messages.length > 0) {
-    messages.forEach((msg) => {
-      fetchReactions(msg.id);
-    });
-  }
-// eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
-  useEffect(() => {
     setIsClient(true);
     callSocket.onIncomingCall((data: any) => {
       setRole("callee");
@@ -549,28 +540,46 @@ export default function ChatPage() {
     setIsLoadingMessage(true);
 
     try {
+      let fetchedMessages: any[] = [];
+
       if (isGroup) {
         const groupMessages = await chatRoomUseCases.getGroupMessage(
           selectedUser.id
         );
-        setMessages(
-          groupMessages.map((msg) => ({
-            ...msg,
-            isOwn: msg.fromUserId === user.id,
-          }))
-        );
+        fetchedMessages = groupMessages.map((msg) => ({
+          ...msg,
+          isOwn: msg.fromUserId === user.id,
+        }));
       } else {
-        const messages = await chatUseCases.getHistoryMessages(
+        const directMessages = await chatUseCases.getHistoryMessages(
           user.id,
           selectedUser.id
         );
-        setMessages(
-          messages.map((msg) => ({
-            ...msg,
-            isOwn: msg.fromUserId === user.id,
-          }))
-        );
+        fetchedMessages = directMessages.map((msg) => ({
+          ...msg,
+          isOwn: msg.fromUserId === user.id,
+        }));
       }
+
+      // 🔹 Fetch reactions for each message right after messages are loaded
+      const messagesWithReactions = await Promise.all(
+        fetchedMessages.map(async (msg) => {
+          try {
+            const res = await fetch(
+              `${process.env.NEXT_PUBLIC_API_URL}/messages/${msg.id}/reactions`
+            );
+            if (!res.ok) return { ...msg, reactions: [] };
+
+            const reactions = await res.json();
+            return { ...msg, reactions };
+          } catch (err) {
+            console.error("❌ Failed to fetch reactions for msg", msg.id, err);
+            return { ...msg, reactions: [] };
+          }
+        })
+      );
+
+      setMessages(messagesWithReactions);
     } catch (err) {
       console.error("❌ Error fetching chat history:", err);
     } finally {
@@ -648,24 +657,6 @@ export default function ChatPage() {
       ...newMap,
     }));
   };
-
-  // fetch message reactions
-  const fetchReactions = async (messageId: string) => {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}/reactions`);
-    if (!res.ok) throw new Error("Failed to fetch reactions");
-    const data = await res.json();
-
-    // Update local state
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === messageId ? { ...msg, reactions: data } : msg
-      )
-    );
-  } catch (err) {
-    console.error("Error fetching reactions", err);
-  }
-};
 
   // Initial setup
   useEffect(() => {
@@ -921,6 +912,7 @@ export default function ChatPage() {
   // Chat history and typing handlers
   useEffect(() => {
     if (!selectedUser || !user || !socket) return;
+
     setTypingUserName(null);
     setAvatarGroupUserTyping(null);
 
@@ -1092,6 +1084,7 @@ export default function ChatPage() {
     }
   }, [usersTyping]);
 
+  // handle add reaction emoji
   const handleReact = async (messageId: string, emoji: string) => {
     try {
       await fetch(
@@ -1121,6 +1114,33 @@ export default function ChatPage() {
       );
     } catch (err) {
       console.error("Failed to react:", err);
+    }
+  };
+
+  // 🔹 Function to remove reaction
+  const handleRemoveReaction = async (messageId: string, emoji: string) => {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}/reactions`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user?.id }),
+      });
+
+      // Optimistic UI update
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                reactions: m.reactions.filter(
+                  (r: any) => !(r.userId === user?.id && r.emoji === emoji)
+                ),
+              }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error("❌ Failed to remove reaction", err);
     }
   };
 
@@ -1660,13 +1680,14 @@ export default function ChatPage() {
                     <MessageItem
                       key={msg.id}
                       message={msg}
-                      currentUser={user}
+                      currentUser={user as User}
                       selectedUser={selectedUser}
                       onReact={handleReact}
                       onDelete={handleDeleteMessage}
                       onEdit={handleEditMessage}
                       onReply={handleReplyToMessage}
                       onCopy={handleCopyMessage}
+                      onDeleteReaction={handleRemoveReaction}
                       decodeMessage={decodeMessage}
                       t={t}
                     />

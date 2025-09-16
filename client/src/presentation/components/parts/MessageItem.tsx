@@ -4,14 +4,16 @@ import { ReactionBar } from "./ReactionBar";
 import { MessageOptions } from "../chat/MessageOptions";
 import { Avatar, AvatarImage } from "@radix-ui/react-avatar";
 import { Smile } from "lucide-react";
+import { User } from "@/src/domain/entities/User";
 
 interface MessageItemProps {
   message: any;
-  currentUser: any;
+  currentUser: User;
   selectedUser: any;
   onReact: (messageId: string, emoji: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, content: string) => void;
+  onDeleteReaction: (messageId: string, emoji: string) => void;
   onReply: (
     id: string,
     senderName: string,
@@ -30,6 +32,7 @@ export function MessageItem({
   onReact,
   onDelete,
   onEdit,
+  onDeleteReaction,
   onReply,
   onCopy,
   decodeMessage,
@@ -123,7 +126,9 @@ export function MessageItem({
       )}
 
       <div
-        className={`flex flex-col ${message.isOwn ? "items-end" : "items-start"}`}
+        className={`flex flex-col ${
+          message.isOwn ? "items-end" : "items-start"
+        }`}
       >
         {/* Reply Preview */}
         {message.replyTo && (
@@ -132,14 +137,19 @@ export function MessageItem({
               message.isOwn ? "border-blue-500" : "border-gray-400"
             }`}
             onClick={() => {
-              const el = document.getElementById(`message-${message.replyTo.id}`);
+              const el = document.getElementById(
+                `message-${message.replyTo.id}`
+              );
               if (el) {
                 el.scrollIntoView({
                   behavior: "smooth",
                   block: "center",
                 });
                 el.classList.add("highlight-message");
-                setTimeout(() => el.classList.remove("highlight-message"), 2000);
+                setTimeout(
+                  () => el.classList.remove("highlight-message"),
+                  2000
+                );
               }
             }}
           >
@@ -179,7 +189,9 @@ export function MessageItem({
             <div
               id={`message-${message.id}`}
               className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
-                message.isOwn ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                message.isOwn
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-foreground"
               }`}
             >
               <div
@@ -191,7 +203,9 @@ export function MessageItem({
 
                 {message.edited && (
                   <span
-                    className={`ml-2 text-[10px] italic ${message.isOwn ? "text-blue-200" : "text-gray-500"}`}
+                    className={`ml-2 text-[10px] italic ${
+                      message.isOwn ? "text-blue-200" : "text-gray-500"
+                    }`}
                   >
                     ({t("message.edited")})
                   </span>
@@ -213,7 +227,9 @@ export function MessageItem({
               {showIcon && (
                 <div
                   // wrapper anchors icon and reaction bar together so hover can be tracked
-                  className={`absolute -top-3 ${message.isOwn ? "-left-6" : "-right-6"} z-40`}
+                  className={`absolute -top-3 ${
+                    message.isOwn ? "-left-6" : "-right-6"
+                  } z-40`}
                   onMouseEnter={() => {
                     clearHideTimer();
                     setIsReactionHover(true);
@@ -266,18 +282,34 @@ export function MessageItem({
                     message.isOwn ? "-left-6" : "-right-6"
                   }`}
                 >
-                  {Object.entries(aggregatedReactions).map(([emoji, count]) => (
-                    <div
-                      key={emoji}
-                      className="flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-800 rounded-full shadow-sm text-xs select-none"
-                      title={`${count} reaction${count > 1 ? "s" : ""}`}
-                    >
-                      <span className="text-base leading-none">{emoji}</span>
-                      <span className="text-[11px] font-medium px-1 rounded-full bg-gray-100 dark:bg-slate-700">
-                        {count}
-                      </span>
-                    </div>
-                  ))}
+                  {Object.entries(aggregatedReactions).map(([emoji, count]) => {
+                    const currentUserReacted = message.reactions?.some(
+                      (r: any) =>
+                        r.userId === currentUser.id && r.emoji === emoji
+                    );
+
+                    return (
+                      <div
+                        key={emoji}
+                        className="group flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-800 rounded-full shadow-sm text-xs select-none relative"
+                        title={`${count} reaction${count > 1 ? "s" : ""}`}
+                      >
+                        <span className="text-base leading-none">{emoji}</span>
+
+                        {currentUserReacted && (
+                          <button
+                            onClick={() =>
+                              onDeleteReaction(message.id, emoji)
+                            }
+                            className="absolute -top-2 -right-2 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] leading-none"
+                            aria-label={`Remove ${emoji}`}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

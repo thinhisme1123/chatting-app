@@ -62,7 +62,7 @@ export const ForgetPassForm: React.FC<ForgetPassFormProps> = ({ onBackToLogin })
 
     try {
       // Call your Node.js API to verify reset code
-      const response = await fetch("/auth/verify-reset-code", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-reset-code`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -102,7 +102,7 @@ export const ForgetPassForm: React.FC<ForgetPassFormProps> = ({ onBackToLogin })
 
     try {
       // Call your Node.js API to reset password
-      const response = await fetch("/auth/reset-password", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/reset-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
