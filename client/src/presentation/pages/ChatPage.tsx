@@ -69,6 +69,9 @@ import { TypingIndicator } from "../components/parts/TypingIndicator";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import { ProgressToast } from "../components/parts/ProgressToast";
+import { decodeMessage } from "@/src/utils/decode-message";
+import { ReactionBar } from "../components/parts/ReactionBar";
+import { MessageItem } from "../components/parts/MessageItem";
 
 export default function ChatPage() {
   const { t } = useLanguage();
@@ -357,7 +360,6 @@ export default function ChatPage() {
           { duration: 3000 }
         );
       } catch (err) {
-
         // Rollback if backend delete fails
         setMessages((prev) => [
           ...prev,
@@ -411,9 +413,9 @@ export default function ChatPage() {
     forceFocus();
   }, [replyingToMessage]);
 
-  const handleCopyMessage = (messageId: string, content: string) => {
+  const handleCopyMessage = (content: string) => {
     // You can add a toast notification here if needed
-    console.log(`Message ${messageId} copied: ${content}`);
+    console.log(`Message copied: ${content}`);
   };
 
   const cancelReply = () => {
@@ -538,28 +540,46 @@ export default function ChatPage() {
     setIsLoadingMessage(true);
 
     try {
+      let fetchedMessages: any[] = [];
+
       if (isGroup) {
         const groupMessages = await chatRoomUseCases.getGroupMessage(
           selectedUser.id
         );
-        setMessages(
-          groupMessages.map((msg) => ({
-            ...msg,
-            isOwn: msg.fromUserId === user.id,
-          }))
-        );
+        fetchedMessages = groupMessages.map((msg) => ({
+          ...msg,
+          isOwn: msg.fromUserId === user.id,
+        }));
       } else {
-        const messages = await chatUseCases.getHistoryMessages(
+        const directMessages = await chatUseCases.getHistoryMessages(
           user.id,
           selectedUser.id
         );
-        setMessages(
-          messages.map((msg) => ({
-            ...msg,
-            isOwn: msg.fromUserId === user.id,
-          }))
-        );
+        fetchedMessages = directMessages.map((msg) => ({
+          ...msg,
+          isOwn: msg.fromUserId === user.id,
+        }));
       }
+
+      // 🔹 Fetch reactions for each message right after messages are loaded
+      const messagesWithReactions = await Promise.all(
+        fetchedMessages.map(async (msg) => {
+          try {
+            const res = await fetch(
+              `${process.env.NEXT_PUBLIC_API_URL}/messages/${msg.id}/reactions`
+            );
+            if (!res.ok) return { ...msg, reactions: [] };
+
+            const reactions = await res.json();
+            return { ...msg, reactions };
+          } catch (err) {
+            console.error("❌ Failed to fetch reactions for msg", msg.id, err);
+            return { ...msg, reactions: [] };
+          }
+        })
+      );
+
+      setMessages(messagesWithReactions);
     } catch (err) {
       console.error("❌ Error fetching chat history:", err);
     } finally {
@@ -692,6 +712,7 @@ export default function ChatPage() {
         ...data,
         isOwn,
       };
+      console.log(data.newMessage);
 
       // 👥 Tin nhắn nhóm
       if (isGroupMessage) {
@@ -891,6 +912,7 @@ export default function ChatPage() {
   // Chat history and typing handlers
   useEffect(() => {
     if (!selectedUser || !user || !socket) return;
+
     setTypingUserName(null);
     setAvatarGroupUserTyping(null);
 
@@ -1061,6 +1083,66 @@ export default function ChatPage() {
       el.scrollIntoView({ behavior: "smooth" });
     }
   }, [usersTyping]);
+
+  // handle add reaction emoji
+  const handleReact = async (messageId: string, emoji: string) => {
+    try {
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}/reactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user?.id, emoji }),
+        }
+      );
+
+      // Optimistic UI update
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                reactions: [
+                  ...(msg.reactions || []).filter(
+                    (r: any) => r.userId !== user?.id
+                  ),
+                  { userId: user?.id, emoji },
+                ],
+              }
+            : msg
+        )
+      );
+    } catch (err) {
+      console.error("Failed to react:", err);
+    }
+  };
+
+  // 🔹 Function to remove reaction
+  const handleRemoveReaction = async (messageId: string, emoji: string) => {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}/reactions`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user?.id }),
+      });
+
+      // Optimistic UI update
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                reactions: m.reactions.filter(
+                  (r: any) => !(r.userId === user?.id && r.emoji === emoji)
+                ),
+              }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error("❌ Failed to remove reaction", err);
+    }
+  };
 
   // Handle user selection
   const handleUserSelect = (selected: User) => {
@@ -1260,8 +1342,6 @@ export default function ChatPage() {
 
       // Send to server with final image URL
       if (isGroup) {
-        console.log(finalImageUrl);
-
         socket.emit("send-group-message", {
           roomId: selectedUser.id,
           content: messageContent,
@@ -1312,7 +1392,7 @@ export default function ChatPage() {
       <div className="h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>Loading chat...</p>
+          <p>{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -1396,8 +1476,12 @@ export default function ChatPage() {
               const displayName = isGroup ? item.name : item.username;
               const avatar = item.avatar || "/images/user-placeholder.jpg";
               const hasNew = newMessageUserIds.includes(item.id);
-              const rawMsg =
-                lastMessages[item.id]?.content || t("chat.noMessageYet");
+              const encodedMsg = lastMessages[item.id]?.content;
+
+              const rawMsg = encodedMsg
+                ? decodeMessage(encodedMsg) // decode UTF-8 safe
+                : t("chat.noMessageYet");
+
               const lastMsg = truncate(rawMsg, isGroup);
               const isOnline = !isGroup && onlineUserIds.includes(item.id);
 
@@ -1585,169 +1669,28 @@ export default function ChatPage() {
             >
               <div className="space-y-4">
                 {isLoadingMessage ? (
-                  <div className=" flex items-center justify-center">
+                  <div className="flex items-center justify-center">
                     <div className="text-center">
                       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                       <p>{t("chat.loadingMessages")}</p>
                     </div>
                   </div>
                 ) : (
-                  messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex gap-3 ${
-                        message.isOwn ? "flex-row-reverse" : ""
-                      }`}
-                    >
-                      {!message.isOwn && (
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage
-                            src={
-                              message.senderAvatar?.trim()
-                                ? message.senderAvatar // ✅ Group chat – user avatar
-                                : selectedUser?.avatar?.trim()
-                                ? selectedUser.avatar // ✅ 1-1 chat – other user's avatar
-                                : "/images/user-placeholder.jpg"
-                            }
-                          />
-                        </Avatar>
-                      )}
-
-                      <div
-                        className={`flex flex-col ${
-                          message.isOwn ? "items-end" : "items-start"
-                        }`}
-                      >
-                        {/* Reply Preview */}
-                        {message.replyTo && (
-                          <div
-                            className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-xl bg-gray-100 shadow-sm border-l-4 cursor-pointer ${
-                              message.isOwn
-                                ? "border-blue-500"
-                                : "border-gray-400"
-                            }`}
-                            onClick={() => {
-                              const el = document.getElementById(
-                                `message-${message.replyTo.id}`
-                              );
-                              if (el) {
-                                el.scrollIntoView({
-                                  behavior: "smooth",
-                                  block: "center",
-                                });
-                                el.classList.add("highlight-message");
-                                setTimeout(
-                                  () =>
-                                    el.classList.remove("highlight-message"),
-                                  2000
-                                );
-                              }
-                            }}
-                          >
-                            {/* Sender Name */}
-                            <p className="text-sm font-semibold text-gray-700 leading-tight">
-                              {message.replyTo.senderName}
-                            </p>
-
-                            {/* Content or Image */}
-                            {message.replyTo.imageUrl ? (
-                              <div className="mt-1 flex items-center space-x-2">
-                                <img
-                                  src={message.replyTo.imageUrl}
-                                  alt="reply preview"
-                                  className="w-12 h-12 object-cover rounded-md border"
-                                />
-                                {message.replyTo.content && (
-                                  <p className="text-xs text-gray-500 truncate max-w-[120px]">
-                                    {message.replyTo.content}
-                                  </p>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-gray-500 truncate">
-                                {message.replyTo.content}
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Message and Options aligned horizontally */}
-                        <div
-                          className={`message-content flex items-center gap-1 ${
-                            message.isOwn ? "flex-row-reverse" : "flex-row"
-                          }`}
-                        >
-                          {/* Message Bubble */}
-                          <div
-                            id={`message-${message.id}`}
-                            className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow ${
-                              message.isOwn
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-foreground"
-                            }`}
-                          >
-                            <div
-                              className={`text-sm break-words whitespace-pre-wrap flex flex-col ${
-                                message.isOwn ? "text-right" : "text-left"
-                              }`}
-                            >
-                              {message.content}
-
-                              {message.edited && (
-                                <span
-                                  className={`ml-2 text-[10px] italic ${
-                                    message.isOwn
-                                      ? "text-blue-200"
-                                      : "text-gray-500"
-                                  }`}
-                                >
-                                  ({t("message.edited")})
-                                </span>
-                              )}
-
-                              {/* single image */}
-                              {message.imageUrl && (
-                                <div className="mt-2">
-                                  <img
-                                    src={message.imageUrl}
-                                    alt="message image"
-                                    className="rounded-lg max-h-60 object-cover cursor-pointer hover:opacity-90 transition"
-                                    onClick={() =>
-                                      window.open(message.imageUrl, "_blank")
-                                    }
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Options right beside the message bubble only */}
-                          <MessageOptions
-                            messageId={message.id}
-                            messageContent={message.content}
-                            senderName={message.senderName}
-                            isOwn={message.isOwn}
-                            imageUrl={message.imageUrl}
-                            onDelete={handleDeleteMessage}
-                            onEdit={handleEditMessage}
-                            onReply={handleReplyToMessage}
-                            onCopy={handleCopyMessage}
-                          />
-                        </div>
-                        <p className="text-xs text-foreground">
-                          {new Date(message.timestamp)
-                            .toLocaleString("en-GB", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true, // for AM/PM
-                            })
-                            .replace(",", " |")}
-                        </p>
-                      </div>
-                    </div>
+                  messages.map((msg) => (
+                    <MessageItem
+                      key={msg.id}
+                      message={msg}
+                      currentUser={user as User}
+                      selectedUser={selectedUser}
+                      onReact={handleReact}
+                      onDelete={handleDeleteMessage}
+                      onEdit={handleEditMessage}
+                      onReply={handleReplyToMessage}
+                      onCopy={handleCopyMessage}
+                      onDeleteReaction={handleRemoveReaction}
+                      decodeMessage={decodeMessage}
+                      t={t}
+                    />
                   ))
                 )}
 
@@ -1778,7 +1721,7 @@ export default function ChatPage() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
-                      {replyingToMessage.content}
+                      {decodeMessage(replyingToMessage.content)}
                     </p>
                   </div>
                   <Button
@@ -1805,7 +1748,7 @@ export default function ChatPage() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
-                      {editingMessageContent}
+                      {decodeMessage(editingMessageContent)}
                     </p>
                   </div>
                   <Button

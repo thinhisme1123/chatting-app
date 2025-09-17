@@ -174,7 +174,7 @@ export const CreateGroupModal = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         className="w-[95vw] max-w-[500px] max-h-[90vh] p-0 overflow-hidden bg-gradient-to-br from-background via-background/95 to-background/90 dark:from-gray-900 dark:via-gray-800/95 dark:to-gray-900/90 border-0 shadow-2xl dark:shadow-gray-900/50 [&>button]:hidden"
-        onOpenChange={(open) => {
+        onChange={(open) => {
           if (!open) {
             handleClose();
           }

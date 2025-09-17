@@ -150,5 +150,16 @@
     "creatingGroupShort": "Creating...",
     "createGroupFull": "Create group now!",
     "createGroupShort": "Create!"
-  }
+  },
+  "features": {
+    "realtime": "Real-time messaging",
+    "groupChat": "Group chat",
+    "security": "High security"
+  },
+  "stats": {
+    "users": "Users",
+    "messages": "Messages",
+    "uptime": "Uptime"
+  },
+  "slogan": "Connect anytime, anywhere"
 }

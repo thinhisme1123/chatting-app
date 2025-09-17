@@ -5,14 +5,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
 import { useAuth } from "@/src/presentation/contexts/AuthContext";
 import toast from "react-hot-toast";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-export const LoginForm: React.FC = () => {
+interface LoginFormProps {
+  onForgotPassword?: () => void
+}
+
+
+export const LoginForm: React.FC<LoginFormProps> = ({ onForgotPassword }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -147,7 +152,7 @@ export const LoginForm: React.FC = () => {
         <div className="text-center pt-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {t("auth.forgotPassword")}{" "}
-            <button className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium hover:underline transition-colors">
+            <button type="button" onClick={onForgotPassword} className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium hover:underline transition-colors">
               {t("auth.recoverNow")}
             </button>
           </p>
