@@ -72,6 +72,7 @@ import { ProgressToast } from "../components/parts/ProgressToast";
 import { decodeMessage } from "@/src/utils/decode-message";
 import { ReactionBar } from "../components/parts/ReactionBar";
 import { MessageItem } from "../components/parts/MessageItem";
+import SmartReply from "../components/parts/SmartReply";
 
 export default function ChatPage() {
   const { t } = useLanguage();
@@ -1120,11 +1121,14 @@ export default function ChatPage() {
   // 🔹 Function to remove reaction
   const handleRemoveReaction = async (messageId: string, emoji: string) => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}/reactions`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user?.id }),
-      });
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}/reactions`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user?.id }),
+        }
+      );
 
       // Optimistic UI update
       setMessages((prev) =>
@@ -1708,6 +1712,17 @@ export default function ChatPage() {
                 <div id="chat-end" />
               </div>
             </ScrollArea>
+
+            <div className="p-2 border-t">
+              {/* Smart Reply buttons */}
+              {messages.length > 0 && (
+                <SmartReply
+                  lastMessage={decodeMessage(messages[messages.length - 1]?.content) || ""}
+                  onSelect={(text) => setNewMessage(text)}
+                />
+              )}
+            </div>
+
             {showScrollBtn && <ScrollToBottomButton />}
             {/* Reply Preview */}
             {replyingToMessage && (
